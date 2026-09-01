@@ -20,7 +20,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-role', 'x-user-id', 'x-demo-role', 'x-demo-user-id']
 }))
-app.options('*', cors() as any)
 app.use(express.json())
 
 // Health check
