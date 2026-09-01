@@ -54,7 +54,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || `Erro na requisição: ${response.statusText}`)
+    const statusMsg = response.status === 401 ? 'E-mail institucional ou senha incorretos' : (response.statusText || `Código HTTP ${response.status}`)
+    throw new Error(errorData.error || errorData.message || statusMsg)
   }
 
   return response.json()

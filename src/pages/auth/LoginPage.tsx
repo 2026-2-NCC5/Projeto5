@@ -255,6 +255,45 @@ export default function LoginPage() {
                 </a>
               </div>
             </form>
+
+            {/* Quick Demo Access Buttons */}
+            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-slate-800">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500 text-center mb-3">
+                Acesso Rápido de Demonstração
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('esther.rodrigues@aluno.fecap.br');
+                    setPassword('@#$273baratA');
+                  }}
+                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center"
+                >
+                  🎓 Aluna
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('fernanda.costa@fecap.br');
+                    setPassword('@#$273baratA');
+                  }}
+                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center"
+                >
+                  🏛️ ASA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('ricardo.mendes@fecap.br');
+                    setPassword('@#$273baratA');
+                  }}
+                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center"
+                >
+                  ⚙️ Admin
+                </button>
+              </div>
+            </div>
           </motion.div>
         </div>
       </div>
