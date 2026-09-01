@@ -1,7 +1,15 @@
 import type { Ticket, TicketCategory, TicketPriority, TicketStatus, UserRole } from './mock-data'
 
-const RAW_BASE = (import.meta as any).env?.VITE_API_URL || ''
-const BASE_URL = RAW_BASE ? (RAW_BASE.endsWith('/api') ? RAW_BASE : `${RAW_BASE}/api`) : '/api'
+function getBaseUrl(): string {
+  const raw = ((import.meta as any).env?.VITE_API_URL || '').trim().replace(/\/+$/, '')
+  return raw ? (raw.endsWith('/api') ? raw : `${raw}/api`) : '/api'
+}
+
+function getFullUrl(endpoint: string): string {
+  const base = getBaseUrl()
+  const cleanEndpoint = endpoint.replace(/^\/+/, '')
+  return `${base}/${cleanEndpoint}`
+}
 
 function getAuthHeaders() {
   const token = localStorage.getItem('asaia_auth_token')
@@ -47,7 +55,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     ...(options.headers || {}),
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(getFullUrl(endpoint), {
     ...options,
     headers,
   })
