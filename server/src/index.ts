@@ -15,7 +15,12 @@ const app = express()
 const PORT = process.env.PORT || 3001
 
 // Middleware
-app.use(cors())
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-role', 'x-user-id', 'x-demo-role', 'x-demo-user-id']
+}))
+app.options('*', cors() as any)
 app.use(express.json())
 
 // Health check

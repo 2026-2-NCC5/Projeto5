@@ -1,6 +1,7 @@
 import type { Ticket, TicketCategory, TicketPriority, TicketStatus, UserRole } from './mock-data'
 
-const BASE_URL = '/api'
+const RAW_BASE = (import.meta as any).env?.VITE_API_URL || ''
+const BASE_URL = RAW_BASE ? (RAW_BASE.endsWith('/api') ? RAW_BASE : `${RAW_BASE}/api`) : '/api'
 
 function getAuthHeaders() {
   const token = localStorage.getItem('asaia_auth_token')
