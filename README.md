@@ -7,7 +7,7 @@
 > **Projeto Interdisciplinar — Inteligência Artificial & Engenharia de Software**  
 > **Fundação Escola de Comércio Álvares Penteado (FECAP)**  
 > **Curso:** Ciência da Computação / Engenharia de Software <br>
-> <a href="https://vercel.com/tech-snack/projeto5/projeto5-rose.vercel.app">Acesso</a>
+> <a href="https://projeto5-rose.vercel.app">Acesso</a>
 ---
 
 ## 📌 Sobre o Projeto
