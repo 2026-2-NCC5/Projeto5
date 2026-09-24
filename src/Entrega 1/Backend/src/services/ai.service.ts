@@ -314,9 +314,11 @@ export class AIService {
 
     // 2. Se a chave do Gemini estiver configurada, gera resposta via LLM oficial
     if (genAI) {
+      console.log('🤖 [Álvaro AI] GEMINI_API_KEY detectada. Conectando ao Google Gemini...')
       const validModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
       for (const modelName of validModels) {
         try {
+          console.log(`🤖 [Álvaro AI] Solicitando inferência ao modelo: ${modelName}...`)
           const model = genAI.getGenerativeModel({ model: modelName })
 
           const knowledgeContext = matches.length
@@ -354,6 +356,7 @@ DIRETRIZES DE RESPOSTA OBRIGATÓRIAS:
           const responseText = result.response.text()
 
           if (responseText && responseText.trim()) {
+            console.log(`✅ [Álvaro AI] Resposta gerada com sucesso pelo Google Gemini (${modelName})!`)
             const actions = this.deriveActions(userMessage, matches)
             return {
               content: responseText.trim(),
@@ -363,9 +366,12 @@ DIRETRIZES DE RESPOSTA OBRIGATÓRIAS:
             }
           }
         } catch (err: any) {
-          console.warn(`Tentativa com modelo ${modelName} falhou:`, err.message?.slice(0, 120))
+          console.warn(`⚠️ [Álvaro AI] Tentativa com modelo ${modelName} falhou:`, err.message?.slice(0, 120))
         }
       }
+      console.warn('⚠️ [Álvaro AI] Todos os modelos Gemini falharam. Alternando para o sintetizador semântico local.')
+    } else {
+      console.log('ℹ️ [Álvaro AI] GEMINI_API_KEY não configurada no .env. Utilizando sintetizador semântico local.')
     }
 
     // 3. Fallback inteligente local com extração semântica profunda
