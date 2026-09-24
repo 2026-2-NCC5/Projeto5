@@ -3,8 +3,8 @@ services:
     name: alvaro-ai-backend
     env: node
     plan: free
-    buildCommand: npm install && npx prisma db push && npx prisma generate && npx tsx server/src/seed.ts
-    startCommand: npx tsx server/src/index.ts
+    buildCommand: cd "src/Entrega 1/Backend" && npm install && npx prisma db push && npx prisma generate && npx tsx src/seed.ts
+    startCommand: cd "src/Entrega 1/Backend" && npx tsx src/index.ts
     envVars:
       - key: NODE_ENV
         value: production

@@ -7,7 +7,7 @@
 > **Projeto Interdisciplinar — Inteligência Artificial & Engenharia de Software**  
 > **Fundação Escola de Comércio Álvares Penteado (FECAP)**  
 > **Curso:** Ciência da Computação / Engenharia de Software <br>
-> <a href="https://projeto5-rose.vercel.app">Acesso</a>
+> <a href="https://projeto5-rose.vercel.app">Acesso à Aplicação em Produção</a>
 ---
 
 ## 📌 Sobre o Projeto
@@ -21,6 +21,34 @@ O **Álvaro AI** é uma plataforma full-stack de atendimento universitário inte
 * **Esther Oliveira Costa** — [@estherolvr](https://github.com/estherolvr) (`jaegcostaesther@gmail.com`)
 * **Higor Fonseca** — [@higor-f](https://github.com/higor-f) (`higorlfonsecas@gmail.com`)
 * **João Victor Faria** — [@joaovictorfaria](https://github.com/joaovictorfaria) (`joao.fsantana@outlook.com`)
+
+---
+
+## 🏛️ Estrutura do Repositório (Padrão de Entregas FECAP)
+
+O repositório segue rigorosamente a estrutura acadêmica definida pela FECAP:
+
+```text
+Projeto5/
+├── documentos/
+│   ├── Entrega 1/
+│   │   ├── Inteligência Artifical e Aprendizado de Máquina/
+│   │   ├── Projeto Interdisciplinar_ Inteligência Artificial/
+│   │   ├── Psicologia, Liderança e Soft Skills/
+│   │   ├── Sistemas Operacionais Computação em Nuvem/
+│   │   └── Álgebra Linear, Vetores e Geometria Analítica/
+│   └── Entrega 2/
+├── imagens/
+├── src/
+│   ├── Entrega 1/
+│   │   ├── Backend/          <-- Projeto Backend completo (Node.js, Express, Prisma, SQLite)
+│   │   └── Frontend/         <-- Projeto Frontend completo (React 19, Vite, Tailwind CSS)
+│   └── Entrega 2/
+│       ├── Backend/
+│       └── Frontend/
+├── package.json              <-- Scripts de orquestração geral para desenvolvimento
+└── README.md
+```
 
 ---
 
@@ -46,63 +74,67 @@ O **Álvaro AI** é uma plataforma full-stack de atendimento universitário inte
 
 ## 🛠️ Tecnologias Utilizadas
 
-### **Frontend**
+### **Frontend** (`src/Entrega 1/Frontend`)
 * **React 19** + **TypeScript** + **Vite**
-* **Tailwind CSS** para estilização moderna e responsiva
+* **Tailwind CSS** para estilização com tokens oficiais FECAP/ASA
 * **Framer Motion** para animações fluidas
 * **Lucide React** para iconografia
-* **React Markdown** + **Remark GFM** para renderização rica de tabelas e tópicos
-* **Zustand** para gerenciamento de estado global com persistência
+* **React Markdown** + **Remark GFM** para renderização de tabelas e tópicos
+* **Zustand** para gerenciamento de estado global
 
-### **Backend & Banco de Dados**
+### **Backend & Banco de Dados** (`src/Entrega 1/Backend`)
 * **Node.js** + **Express** com arquitetura RESTful modular
 * **Prisma ORM** + **SQLite** para persistência relacional
-* **JWT (JSON Web Tokens)** + **Bcrypt** para autenticação e controle de acesso por perfis (`aluno`, `asa`, `admin`)
-* **Multer** para upload de arquivos multipart/form-data
-
-### **Inteligência Artificial & RAG**
-* **Google Gemini 3.6 Flash** (`@google/generative-ai`)
+* **JWT (JSON Web Tokens)** + **Bcrypt** para autenticação e perfis (`aluno`, `asa`, `admin`)
+* **Multer** para upload de arquivos
+* **Google Gemini 3.6 Flash** (`@google/generative-ai`) para RAG e respostas inteligentes
 * **pdf-parse** para extração de texto em PDFs institucionais
-* **Semantic Chunking & Hybrid Search** para indexação e recuperação no banco
 
 ---
 
 ## 📦 Como Instalar e Executar Localmente
 
-### 1. Clonar o Repositório
-```bash
-git clone https://github.com/2026-2-NCC5/Projeto5.git
-cd Projeto5
-```
+### Opção 1: Executar pelos Módulos Independentes (Padrão de Avaliação FECAP)
 
-### 2. Instalar as Dependências
+#### Backend (`src/Entrega 1/Backend`):
 ```bash
+cd "src/Entrega 1/Backend"
 npm install
-```
-
-### 3. Configurar as Variáveis de Ambiente
-Crie um arquivo `.env` na raiz do projeto com base no `.env.example`:
-```env
-PORT=3001
-JWT_SECRET=alvaro-ai-super-secret-jwt-key-2026-fecap
-GEMINI_API_KEY=sua_chave_gemini_aqui
-DATABASE_URL="file:./dev.db"
-```
-
-### 4. Inicializar o Banco de Dados e Seeds
-```bash
-npx prisma db push
-npx prisma generate
-npx tsx server/src/seed.ts
-```
-
-### 5. Iniciar a Aplicação (Frontend + Backend)
-```bash
+cp .env.example .env
+npm run db:push
+npm run seed
 npm run dev
 ```
+* Servidor ativo em: `http://localhost:3001`
+* Endpoint de teste: `http://localhost:3001/api/health`
 
-* **Frontend:** [http://localhost:3000](http://localhost:3000)
-* **Backend API:** [http://localhost:3001/api](http://localhost:3001/api)
+#### Frontend (`src/Entrega 1/Frontend`):
+```bash
+cd "src/Entrega 1/Frontend"
+npm install
+npm run dev
+```
+* Aplicação web: `http://localhost:3000`
+
+---
+
+### Opção 2: Executar da Raiz do Projeto (Comando Único)
+
+1. **Instalar dependências de ambos os módulos:**
+   ```bash
+   npm run install:all
+   ```
+
+2. **Inicializar banco de dados e seeds:**
+   ```bash
+   npm run db:push
+   npm run seed
+   ```
+
+3. **Iniciar Frontend e Backend simultaneamente:**
+   ```bash
+   npm run dev
+   ```
 
 ---
 

@@ -12,7 +12,7 @@ import {
   mockPrompts,
   mockIntegrations,
   mockNotifications,
-} from '../../src/lib/mock-data'
+} from './mock-data'
 
 export async function seedDatabase() {
   console.log('🌱 Iniciando Seed do Banco de Dados...')
