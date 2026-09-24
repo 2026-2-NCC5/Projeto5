@@ -315,7 +315,7 @@ export class AIService {
     // 2. Se a chave do Gemini estiver configurada, gera resposta via LLM oficial
     if (genAI) {
       console.log('🤖 [Álvaro AI] GEMINI_API_KEY detectada. Conectando ao Google Gemini...')
-      const validModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
+      const validModels = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
       for (const modelName of validModels) {
         try {
           console.log(`🤖 [Álvaro AI] Solicitando inferência ao modelo: ${modelName}...`)
@@ -401,7 +401,7 @@ DIRETRIZES DE RESPOSTA OBRIGATÓRIAS:
     const genAI = this.getGenAI()
 
     if (genAI) {
-      for (const modelName of ['gemini-1.5-flash', 'gemini-2.0-flash']) {
+      for (const modelName of ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.5-flash']) {
         try {
           const model = genAI.getGenerativeModel({ model: modelName })
 
