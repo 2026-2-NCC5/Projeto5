@@ -30,11 +30,11 @@ chatRouter.get('/conversations', authenticateToken, async (req: AuthenticatedReq
       id: c.id,
       title: c.title,
       studentId: c.studentId,
-      status: c.status,
+      status: 'ativo',
       lastMessage: c.messages[0]?.content || 'Nova conversa',
       lastMessageTime: c.messages[0]?.timestamp || c.createdAt,
       unread: false,
-      aiHandled: c.aiHandled,
+      aiHandled: true,
     }))
 
     res.json(formatted)
@@ -94,7 +94,7 @@ chatRouter.post('/conversations', authenticateToken, async (req: AuthenticatedRe
 // Get single conversation by ID
 chatRouter.get('/conversations/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
 
     const conversation = await prisma.conversation.findUnique({
       where: { id },
@@ -125,7 +125,7 @@ chatRouter.get('/conversations/:id', authenticateToken, async (req: Authenticate
 // Send message in conversation & receive AI response (with RAG knowledge retrieval)
 chatRouter.post('/conversations/:id/messages', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
     const { content } = req.body
 
     if (!content || !content.trim()) {

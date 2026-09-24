@@ -79,7 +79,7 @@ ticketRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res) 
 // Get single ticket by ID
 ticketRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
 
     const ticket = await prisma.ticket.findUnique({
       where: { id },
@@ -210,7 +210,7 @@ ticketRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res)
 // Update ticket status / assignment / priority
 ticketRouter.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
     const { status, priority, assignedTo, category, tags } = req.body
 
     const existingTicket = await prisma.ticket.findUnique({ where: { id } })
@@ -265,7 +265,7 @@ ticketRouter.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, 
 // Add message to ticket
 ticketRouter.post('/:id/messages', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
     const { content, isInternal, attachments } = req.body
 
     if (!content) {

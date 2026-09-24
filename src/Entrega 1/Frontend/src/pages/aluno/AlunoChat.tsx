@@ -21,13 +21,55 @@ export default function AlunoChat() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const loadConversation = async (convId: string) => {
+  const LOCAL_CONVERSATIONS_KEY = 'asaia_student_conversations';
+  const LOCAL_MESSAGES_KEY_PREFIX = 'asaia_chat_messages_';
+
+  const getLocalConversations = (): any[] => {
     try {
-      setIsLoadingConv(true);
+      const raw = localStorage.getItem(LOCAL_CONVERSATIONS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveLocalConversations = (convList: any[]) => {
+    try {
+      localStorage.setItem(LOCAL_CONVERSATIONS_KEY, JSON.stringify(convList));
+    } catch (e) {}
+  };
+
+  const getLocalMessages = (convId: string): any[] => {
+    try {
+      const raw = localStorage.getItem(`${LOCAL_MESSAGES_KEY_PREFIX}${convId}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveLocalMessages = (convId: string, msgs: any[]) => {
+    try {
+      localStorage.setItem(`${LOCAL_MESSAGES_KEY_PREFIX}${convId}`, JSON.stringify(msgs));
+    } catch (e) {}
+  };
+
+  const loadConversation = async (convId: string) => {
+    // Carrega instantaneamente do cache local se existir
+    const cached = getLocalMessages(convId);
+    if (cached && cached.length > 0) {
+      setActiveConvId(convId);
+      setMessages(cached);
+    }
+
+    try {
+      setIsLoadingConv(!cached || cached.length === 0);
       const conv = await api.chat.getConversation(convId);
       if (conv) {
         setActiveConvId(conv.id);
-        setMessages(conv.messages || []);
+        const serverMsgs = conv.messages || [];
+        setMessages(serverMsgs);
+        saveLocalMessages(conv.id, serverMsgs);
       }
     } catch (err) {
       console.error('Erro ao carregar mensagens da conversa:', err);
@@ -38,23 +80,37 @@ export default function AlunoChat() {
 
   const fetchConversations = async () => {
     try {
-      const list = await api.chat.getConversations();
+      let list = await api.chat.getConversations().catch(() => []);
+      const localConvs = getLocalConversations();
+
       if (list && list.length > 0) {
         setConversations(list);
-        // Load the first conversation if none selected
+        saveLocalConversations(list);
         if (!activeConvId) {
           await loadConversation(list[0].id);
         }
+      } else if (localConvs && localConvs.length > 0) {
+        setConversations(localConvs);
+        if (!activeConvId) {
+          await loadConversation(localConvs[0].id);
+        }
       } else {
-        // Auto create first conversation if empty
         const newConv = await api.chat.createConversation('Atendimento Álvaro AI');
-        setConversations([newConv]);
+        const initialList = [newConv];
+        setConversations(initialList);
+        saveLocalConversations(initialList);
         setActiveConvId(newConv.id);
         setMessages(newConv.messages || []);
+        saveLocalMessages(newConv.id, newConv.messages || []);
         setIsLoadingConv(false);
       }
     } catch (err) {
       console.error('Erro ao listar conversas:', err);
+      const fallback = getLocalConversations();
+      if (fallback.length) {
+        setConversations(fallback);
+        if (!activeConvId) loadConversation(fallback[0].id);
+      }
       setIsLoadingConv(false);
     }
   };
@@ -83,9 +139,12 @@ export default function AlunoChat() {
     try {
       setIsLoadingConv(true);
       const newConv = await api.chat.createConversation('Nova Conversa com Álvaro AI');
-      setConversations(prev => [newConv, ...prev]);
+      const updatedList = [newConv, ...conversations];
+      setConversations(updatedList);
+      saveLocalConversations(updatedList);
       setActiveConvId(newConv.id);
       setMessages(newConv.messages || []);
+      saveLocalMessages(newConv.id, newConv.messages || []);
       setShowSidebar(false);
     } catch (err) {
       console.error('Erro ao criar conversa:', err);
@@ -109,28 +168,37 @@ export default function AlunoChat() {
       timestamp: new Date().toISOString()
     };
 
-    setMessages(prev => [...(prev || []), tempUserMsg]);
+    const updatedWithUser = [...(messages || []), tempUserMsg];
+    setMessages(updatedWithUser);
+    saveLocalMessages(activeConvId, updatedWithUser);
     setInputValue('');
     setIsTyping(true);
 
     try {
       const response = await api.chat.sendMessage(activeConvId, text);
       if (response?.aiMessage) {
-        setMessages(prev => [...(prev || []), response.aiMessage]);
+        const updatedWithAi = [...updatedWithUser, response.aiMessage];
+        setMessages(updatedWithAi);
+        saveLocalMessages(activeConvId, updatedWithAi);
         // Refresh conversation list preview
-        api.chat.getConversations().then(res => setConversations(res || []));
+        api.chat.getConversations().then(res => {
+          if (res?.length) {
+            setConversations(res);
+            saveLocalConversations(res);
+          }
+        }).catch(() => {});
       }
     } catch (err) {
       console.error('Erro ao enviar mensagem:', err);
-      setMessages(prev => [
-        ...(prev || []),
-        {
-          id: `err-${Date.now()}`,
-          role: 'assistant',
-          content: 'Desculpe, ocorreu uma instabilidade momentânea ao processar sua dúvida. Por favor, tente novamente.',
-          timestamp: new Date().toISOString(),
-        }
-      ]);
+      const errMessage = {
+        id: `err-${Date.now()}`,
+        role: 'assistant',
+        content: 'Desculpe, ocorreu uma instabilidade momentânea ao processar sua dúvida. Por favor, tente novamente.',
+        timestamp: new Date().toISOString(),
+      };
+      const updatedWithErr = [...updatedWithUser, errMessage];
+      setMessages(updatedWithErr);
+      saveLocalMessages(activeConvId, updatedWithErr);
     } finally {
       setIsTyping(false);
     }

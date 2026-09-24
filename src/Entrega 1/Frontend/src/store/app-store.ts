@@ -75,18 +75,7 @@ export const useAppStore = create<AppState>()(
       activeRole: 'aluno',
       setActiveRole: (role) => set({ activeRole: role }),
 
-      currentUser: {
-        id: 'aluno-01',
-        name: 'Esther Rodrigues',
-        email: 'esther.rodrigues@aluno.fecap.br',
-        role: 'aluno',
-        ra: '24001523',
-        course: 'Administração',
-        semester: 3,
-        period: 'noite',
-        status: 'regular',
-        phone: '(11) 98765-4321',
-      },
+      currentUser: null,
       setCurrentUser: (user) => {
         set({
           currentUser: user,

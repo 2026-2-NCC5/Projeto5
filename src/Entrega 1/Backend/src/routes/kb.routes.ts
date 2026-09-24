@@ -195,7 +195,7 @@ kbRouter.get('/search', authenticateToken, async (req: AuthenticatedRequest, res
 // Get single article by ID
 kbRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
 
     const doc = await prisma.kBDocument.findUnique({
       where: { id },
@@ -259,7 +259,7 @@ kbRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res) => 
 // Update article
 kbRouter.put('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
     const { title, category, content, tags, status, version } = req.body
 
     const existing = await prisma.kBDocument.findUnique({ where: { id } })
@@ -294,7 +294,7 @@ kbRouter.put('/:id', authenticateToken, async (req: AuthenticatedRequest, res) =
 // Delete article
 kbRouter.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
 
     await prisma.kBDocument.delete({
       where: { id },

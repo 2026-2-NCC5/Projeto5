@@ -77,7 +77,7 @@ export default function AlunoLayout() {
           <button
             onClick={() => {
               logout()
-              navigate('/login')
+              navigate('/login', { replace: true })
             }}
             className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700/50 transition-colors"
           >
@@ -153,7 +153,16 @@ export default function AlunoLayout() {
             <FecapLogo size={28} />
             <span className="font-bold text-gray-900 dark:text-white">Álvaro AI</span>
           </div>
-          <Avatar name={currentUser?.name || 'Aluno'} size="sm" />
+          <button
+            onClick={() => {
+              logout()
+              navigate('/login', { replace: true })
+            }}
+            title="Sair"
+            className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </header>
 
         {/* Desktop header */}
@@ -164,12 +173,23 @@ export default function AlunoLayout() {
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pl-2 border-l border-gray-100 dark:border-slate-700">
               <Avatar name={currentUser?.name || 'Aluno'} size="sm" />
               <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
                 {currentUser?.name || 'Aluno'}
               </span>
             </div>
+            <button
+              onClick={() => {
+                logout()
+                navigate('/login', { replace: true })
+              }}
+              title="Encerrar Sessão"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sair
+            </button>
           </div>
         </header>
 

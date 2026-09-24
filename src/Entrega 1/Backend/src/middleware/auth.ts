@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 
-export const JWT_SECRET = process.env.JWT_SECRET || 'asaia-super-secret-jwt-key-2026'
+export const JWT_SECRET = process.env.JWT_SECRET || 'alvaro-ai-super-secret-jwt-key-2026-fecap'
 
 export interface AuthenticatedUser {
   id: string
@@ -15,33 +15,18 @@ export interface AuthenticatedRequest extends Request {
   user?: AuthenticatedUser
 }
 
+/**
+ * Middleware para validar o token JWT de autenticação.
+ * Exige cabeçalho 'Authorization: Bearer <token>' válido.
+ */
 export function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  // Allow demo header override for rapid switching in dev/demo mode
-  const demoRole = req.headers['x-demo-role'] as string
-  const demoUserId = req.headers['x-demo-user-id'] as string
-
-  if (demoRole) {
-    req.user = {
-      id: demoUserId || (demoRole === 'aluno' ? 'aluno-01' : demoRole === 'asa' ? 'asa-01' : 'admin-01'),
-      name: demoRole === 'aluno' ? 'Esther Rodrigues' : demoRole === 'asa' ? 'Fernanda Costa' : 'Ricardo Mendes',
-      email: demoRole === 'aluno' ? 'esther.rodrigues@aluno.fecap.br' : demoRole === 'asa' ? 'fernanda.costa@fecap.br' : 'ricardo.mendes@fecap.br',
-      role: demoRole as 'aluno' | 'asa' | 'admin',
-    }
-    return next()
-  }
-
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1]
 
   if (!token) {
-    // Default fallback to aluno-01 if unauthenticated for smooth demo
-    req.user = {
-      id: 'aluno-01',
-      name: 'Esther Rodrigues',
-      email: 'esther.rodrigues@aluno.fecap.br',
-      role: 'aluno',
-    }
-    return next()
+    return res.status(401).json({
+      error: 'Acesso não autorizado. Token JWT não fornecido. Por favor, faça login.'
+    })
   }
 
   try {
@@ -49,14 +34,21 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
     req.user = decoded
     next()
   } catch (err) {
-    return res.status(403).json({ error: 'Token inválido ou expirado' })
+    return res.status(401).json({
+      error: 'Sessão expirada ou token inválido. Por favor, faça login novamente.'
+    })
   }
 }
 
+/**
+ * Middleware para autorização baseada em perfil (RBAC)
+ */
 export function requireRole(allowedRoles: Array<'aluno' | 'asa' | 'admin'>) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Acesso não autorizado para este perfil' })
+      return res.status(403).json({
+        error: 'Acesso proibido: você não possui permissão para acessar este recurso institucional.'
+      })
     }
     next()
   }

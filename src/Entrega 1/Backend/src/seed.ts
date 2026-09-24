@@ -194,8 +194,8 @@ export async function seedDatabase() {
           id: conv.id,
           studentId: conv.studentId,
           title: conv.title,
-          createdAt: new Date(conv.createdAt || Date.now()),
-          updatedAt: new Date(conv.updatedAt || Date.now()),
+          createdAt: new Date((conv as any).createdAt || Date.now()),
+          updatedAt: new Date((conv as any).updatedAt || Date.now()),
           messages: {
             create: conv.messages.map(m => ({
               id: m.id,

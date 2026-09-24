@@ -88,9 +88,13 @@ export class AIService {
 
     if (!docs.length) return []
 
+    const queryLower = this.normalizeText(query)
     const queryTokens = this.tokenize(query)
 
     const scoredDocs = docs.map(doc => {
+      const normTitle = this.normalizeText(doc.title)
+      const normContent = this.normalizeText(doc.content)
+      const normCat = this.normalizeText(doc.category)
       const titleTokens = this.tokenize(doc.title)
       const contentTokens = this.tokenize(doc.content)
       const catTokens = this.tokenize(doc.category)
@@ -106,16 +110,18 @@ export class AIService {
 
       // Match em título vale mais
       queryTokens.forEach(t => {
-        if (titleTokens.includes(t)) score += 6
-        if (catTokens.includes(t)) score += 3
-        if (tagTokens.includes(t)) score += 4
-        if (contentTokens.includes(t)) score += 1
+        if (titleTokens.includes(t)) score += 8
+        if (catTokens.includes(t)) score += 4
+        if (tagTokens.includes(t)) score += 5
+        if (contentTokens.includes(t)) score += 2
       })
 
-      // Frase exata
-      const queryLower = query.toLowerCase()
-      if (doc.title.toLowerCase().includes(queryLower)) score += 12
-      if (doc.content.toLowerCase().includes(queryLower)) score += 6
+      // Frase exata ou substring normalizada (sem acentos / case-insensitive)
+      if (queryLower.length > 2) {
+        if (normTitle.includes(queryLower)) score += 15
+        if (normCat.includes(queryLower)) score += 8
+        if (normContent.includes(queryLower)) score += 10
+      }
 
       return {
         docId: doc.id,
@@ -128,10 +134,34 @@ export class AIService {
       }
     })
 
-    return scoredDocs
+    const matched = scoredDocs
       .filter(d => d.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
+
+    // Se encontrou correspondências com pontuação positiva, retorna os melhores
+    if (matched.length > 0) {
+      return matched
+    }
+
+    // Se a busca exata não pontuou (ex: pergunta ampla ou coloquial), fornece os documentos mais recentes como contexto de apoio
+    return docs.slice(0, Math.min(limit, 2)).map(doc => ({
+      docId: doc.id,
+      docTitle: doc.title,
+      category: doc.category,
+      content: doc.content,
+      score: 1,
+      source: doc.source,
+      filename: doc.filename || undefined,
+    }))
+  }
+
+  private normalizeText(text: string): string {
+    return (text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
   }
 
   /**

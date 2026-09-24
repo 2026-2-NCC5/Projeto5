@@ -104,7 +104,7 @@ adminRouter.get('/prompts', authenticateToken, async (req, res) => {
 
 adminRouter.put('/prompts/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
     const { content, version, status, name, description } = req.body
 
     const dataToUpdate: any = {}
@@ -184,7 +184,7 @@ adminRouter.get('/notifications', authenticateToken, async (req: AuthenticatedRe
 
 adminRouter.patch('/notifications/:id/read', authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
     const updated = await prisma.notification.update({
       where: { id },
       data: { read: true },

@@ -11,30 +11,10 @@ function getFullUrl(endpoint: string): string {
   return `${base}/${cleanEndpoint}`
 }
 
-function getAuthHeaders() {
-  const token = localStorage.getItem('asaia_auth_token')
-  const storeData = localStorage.getItem('asaia-app-store')
-  let demoRole = 'aluno'
-  let demoUserId = 'aluno-01'
-
-  try {
-    if (storeData) {
-      const parsed = JSON.parse(storeData)
-      if (parsed?.state?.currentUser) {
-        demoRole = parsed.state.currentUser.role || 'aluno'
-        demoUserId = parsed.state.currentUser.id || 'aluno-01'
-      } else if (parsed?.state?.activeRole) {
-        demoRole = parsed.state.activeRole
-      }
-    }
-  } catch (e) {
-    // fallback
-  }
-
+function getAuthHeaders(): Record<string, string> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('asaia_auth_token') : null
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-demo-role': demoRole,
-    'x-demo-user-id': demoUserId,
   }
 
   if (token) {
@@ -61,8 +41,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   })
 
   if (!response.ok) {
+    if (response.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('asaia_auth_token')
+        const currentPath = window.location.pathname
+        if (currentPath !== '/login' && currentPath !== '/') {
+          window.location.href = '/login'
+        }
+      }
+    }
     const errorData = await response.json().catch(() => ({}))
-    const statusMsg = response.status === 401 ? 'E-mail institucional ou senha incorretos' : (response.statusText || `Código HTTP ${response.status}`)
+    const statusMsg = response.status === 401 ? 'Sessão expirada ou não autenticada. Faça login novamente.' : (response.statusText || `Código HTTP ${response.status}`)
     throw new Error(errorData.error || errorData.message || statusMsg)
   }
 

@@ -32,16 +32,72 @@ export default function AsaBaseConhecimento() {
 
   const categories = ['todas', 'Matrícula', 'Financeiro', 'Acadêmico', 'Bolsas & Financiamento', 'Secretaria', 'Geral'];
 
+  const LOCAL_CUSTOM_DOCS_KEY = 'asaia_custom_kb_documents';
+
+  const getLocalCustomDocs = (): any[] => {
+    try {
+      const raw = localStorage.getItem(LOCAL_CUSTOM_DOCS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveLocalCustomDoc = (doc: any) => {
+    try {
+      const existing = getLocalCustomDocs();
+      const updated = [doc, ...existing.filter((d: any) => d.id !== doc.id && d.title !== doc.title)];
+      localStorage.setItem(LOCAL_CUSTOM_DOCS_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Erro ao salvar documento em cache local:', e);
+    }
+  };
+
+  const removeLocalCustomDoc = (id: string) => {
+    try {
+      const existing = getLocalCustomDocs();
+      localStorage.setItem(LOCAL_CUSTOM_DOCS_KEY, JSON.stringify(existing.filter((d: any) => d.id !== id)));
+    } catch (e) {}
+  };
+
   const fetchDocuments = async () => {
     try {
       setIsLoading(true);
-      const list = await api.kb.list({
+      let list = await api.kb.list({
         category: selectedCategory !== 'todas' ? selectedCategory : undefined,
         search: search.trim() || undefined,
-      });
+      }).catch(() => []);
+
+      const localCustomDocs = getLocalCustomDocs();
+
+      // Sincronização inteligente: se o Render reiniciou o SQLite para o seed padrão,
+      // re-injeta automaticamente os documentos customizados salvos pelo atendente
+      if (list && list.length > 0) {
+        for (const localDoc of localCustomDocs) {
+          const existsOnBackend = list.some((d: any) => d.title.trim().toLowerCase() === localDoc.title.trim().toLowerCase());
+          if (!existsOnBackend) {
+            try {
+              const recreated = await api.kb.create({
+                title: localDoc.title,
+                category: localDoc.category,
+                content: localDoc.content,
+                tags: localDoc.tags,
+              });
+              list = [recreated, ...list];
+            } catch (syncErr) {
+              list = [localDoc, ...list];
+            }
+          }
+        }
+      } else if (localCustomDocs.length > 0) {
+        list = [...localCustomDocs];
+      }
+
       setDocuments(list);
     } catch (err) {
       console.error('Erro ao buscar base de conhecimento:', err);
+      const fallback = getLocalCustomDocs();
+      if (fallback.length) setDocuments(fallback);
     } finally {
       setIsLoading(false);
     }
@@ -68,10 +124,32 @@ export default function AsaBaseConhecimento() {
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
-      if (docTitle.trim()) formData.append('title', docTitle.trim());
+      const chosenTitle = docTitle.trim() || uploadFile.name.replace(/\.[^/.]+$/, '');
+      formData.append('title', chosenTitle);
       formData.append('category', docCategory);
 
+      // Lê uma prévia textual caso seja txt ou md
+      let textContent = `Documento institucional: ${chosenTitle} (${uploadFile.name}).`;
+      if (uploadFile.type === 'text/plain' || uploadFile.name.endsWith('.txt') || uploadFile.name.endsWith('.md')) {
+        try {
+          textContent = await uploadFile.text();
+        } catch (e) {}
+      }
+
       const res = await api.kb.upload(formData);
+      saveLocalCustomDoc({
+        id: res?.document?.id || `upload-${Date.now()}`,
+        title: chosenTitle,
+        category: docCategory,
+        content: textContent,
+        author: 'Equipe ASA',
+        source: 'upload',
+        filename: uploadFile.name,
+        indexed: true,
+        tags: [docCategory.toLowerCase(), 'institucional', 'upload'],
+        createdAt: new Date().toISOString(),
+      });
+
       setUploadSuccessMsg(res.message || 'Documento indexado com sucesso no RAG!');
       setUploadFile(null);
       setDocTitle('');
@@ -79,7 +157,7 @@ export default function AsaBaseConhecimento() {
         setUploadModalOpen(false);
         setUploadSuccessMsg('');
         fetchDocuments();
-      }, 1200);
+      }, 1000);
     } catch (err: any) {
       console.error('Erro no upload:', err);
       setUploadErrorMsg(err.message || 'Erro ao processar o arquivo.');
@@ -100,11 +178,23 @@ export default function AsaBaseConhecimento() {
 
     try {
       const tagsArray = docTags.split(',').map(t => t.trim()).filter(Boolean);
-      await api.kb.create({
+      const newDoc = await api.kb.create({
         title: docTitle.trim(),
         category: docCategory,
         content: docContent.trim(),
         tags: tagsArray,
+      });
+
+      saveLocalCustomDoc(newDoc || {
+        id: `manual-${Date.now()}`,
+        title: docTitle.trim(),
+        category: docCategory,
+        content: docContent.trim(),
+        tags: tagsArray,
+        author: 'Equipe ASA',
+        source: 'manual',
+        indexed: true,
+        createdAt: new Date().toISOString(),
       });
 
       setDocTitle('');
@@ -124,10 +214,13 @@ export default function AsaBaseConhecimento() {
     e.stopPropagation();
     if (!confirm('Deseja realmente remover este documento da Base de Conhecimento do Álvaro AI?')) return;
     try {
+      removeLocalCustomDoc(id);
       await api.kb.delete(id);
       fetchDocuments();
     } catch (err) {
       console.error('Erro ao deletar documento:', err);
+      removeLocalCustomDoc(id);
+      fetchDocuments();
     }
   };
 

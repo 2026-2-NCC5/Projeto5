@@ -53,7 +53,7 @@ studentRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res)
 // Get single student by ID with tickets
 studentRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params
+    const id = String(req.params.id)
 
     const student = await prisma.student.findUnique({
       where: { id },

@@ -30,11 +30,40 @@ export default function LoginPage() {
         setCurrentUser(res.user);
         const role = res.user.role || 'aluno';
         setActiveRole(role);
-        navigate(`/${role}`);
+        navigate(`/${role}`, { replace: true });
       }
     } catch (err: any) {
       console.error('Erro ao fazer login:', err);
       setErrorMessage(err.message || 'E-mail institucional ou senha incorretos.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuickDemoLogin = async (role: 'aluno' | 'asa' | 'admin', demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setIsLoading(true);
+    setErrorMessage('');
+    try {
+      let res;
+      try {
+        res = await api.auth.login(demoEmail, demoPass);
+      } catch (e) {
+        res = await api.auth.demoLogin(role);
+      }
+      if (res?.token) {
+        localStorage.setItem('asaia_auth_token', res.token);
+      }
+      if (res?.user) {
+        setCurrentUser(res.user);
+        const targetRole = res.user.role || role;
+        setActiveRole(targetRole);
+        navigate(`/${targetRole}`, { replace: true });
+      }
+    } catch (err: any) {
+      console.error('Erro no login rápido:', err);
+      setErrorMessage(err.message || 'Erro ao realizar login institucional.');
     } finally {
       setIsLoading(false);
     }
@@ -264,31 +293,25 @@ export default function LoginPage() {
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setEmail('esther.rodrigues@aluno.fecap.br');
-                    setPassword('@#$273baratA');
-                  }}
-                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center"
+                  disabled={isLoading}
+                  onClick={() => handleQuickDemoLogin('aluno', 'esther.rodrigues@aluno.fecap.br', '@#$273baratA')}
+                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center disabled:opacity-50"
                 >
                   🎓 Aluna
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setEmail('fernanda.costa@fecap.br');
-                    setPassword('@#$273baratA');
-                  }}
-                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center"
+                  disabled={isLoading}
+                  onClick={() => handleQuickDemoLogin('asa', 'fernanda.costa@fecap.br', '@#$273baratA')}
+                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center disabled:opacity-50"
                 >
                   🏛️ ASA
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setEmail('ricardo.mendes@fecap.br');
-                    setPassword('@#$273baratA');
-                  }}
-                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center"
+                  disabled={isLoading}
+                  onClick={() => handleQuickDemoLogin('admin', 'ricardo.mendes@fecap.br', '@#$273baratA')}
+                  className="px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer text-center disabled:opacity-50"
                 >
                   ⚙️ Admin
                 </button>
