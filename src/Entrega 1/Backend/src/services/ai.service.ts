@@ -24,13 +24,44 @@ export interface StudentContext {
   period?: string
 }
 
+const STOPWORDS = new Set([
+  'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'do', 'da', 'dos', 'das',
+  'em', 'no', 'na', 'nos', 'nas', 'por', 'pelo', 'pela', 'pelos', 'pelas', 'para', 'pra',
+  'com', 'sem', 'sob', 'sobre', 'que', 'qual', 'quais', 'como', 'quando', 'onde', 'quem',
+  'por que', 'porque', 'pq', 'qualquer', 'e', 'ou', 'mas', 'se', 'ja', 'nao',
+  'mais', 'menos', 'muito', 'pouco', 'ola', 'oi', 'bom', 'dia', 'boa', 'tarde', 'noite',
+  'por favor', 'favor', 'pfv', 'chat', 'ia', 'alvaro', 'gostaria', 'saber', 'quero',
+  'preciso', 'esta', 'estao', 'sao', 'foi', 'ser', 'tem', 'ter', 'fazer', 'faco'
+])
+
 export class AIService {
   private getGenAI(): GoogleGenerativeAI | null {
-    const apiKey = process.env.GEMINI_API_KEY
-    if (apiKey) {
+    const apiKey = (process.env.GEMINI_API_KEY || '').trim()
+    if (apiKey && apiKey !== 'sua_chave_gemini_aqui' && apiKey.length > 10) {
       return new GoogleGenerativeAI(apiKey)
     }
     return null
+  }
+
+  public normalizeText(text: string): string {
+    return (text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+  }
+
+  public stem(word: string): string {
+    const w = this.normalizeText(word)
+    if (w.length <= 4) return w
+    return w.replace(/(coes|cao|sao|mente|ando|endo|indo|ado|ido|eza|ivo|iva|vel|ais|eis|ores|ura|ario|aria|os|as|es|o|a|e)$/, '')
+  }
+
+  public getKeywords(text: string): string[] {
+    return this.normalizeText(text)
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length >= 2 && !STOPWORDS.has(t))
   }
 
   /**
@@ -50,7 +81,6 @@ export class AIService {
     while (start < clean.length) {
       let end = start + chunkSize
 
-      // Encontra quebra de parágrafo ou ponto para corte limpo
       if (end < clean.length) {
         const nextBreak = clean.indexOf('\n\n', end - 100)
         if (nextBreak !== -1 && nextBreak <= end + 100) {
@@ -76,7 +106,95 @@ export class AIService {
   }
 
   /**
-   * Busca híbrida na Base de Conhecimento (KBDocument)
+   * Localiza a seção mais relevante dentro do conteúdo integral de um documento
+   */
+  public extractRelevantExcerpt(
+    content: string,
+    query: string,
+    maxChars: number = 1500
+  ): { excerpt: string; score: number } {
+    if (!content) return { excerpt: '', score: 0 }
+
+    const normQuery = this.normalizeText(query)
+    const keywords = this.getKeywords(query)
+    const stems = keywords.map(k => this.stem(k))
+
+    if (!keywords.length) {
+      return { excerpt: content.slice(0, maxChars), score: 1 }
+    }
+
+    // Divide em blocos/parágrafos naturais
+    const rawSections = content
+      .split(/\n\s*\n/)
+      .map(s => s.trim())
+      .filter(s => s.length > 20)
+
+    if (!rawSections.length) {
+      return { excerpt: content.slice(0, maxChars), score: 1 }
+    }
+
+    const scoredSections = rawSections.map((sec, idx) => {
+      let score = 0
+      const normSec = this.normalizeText(sec)
+
+      // 1. Frase completa exata
+      if (normSec.includes(normQuery)) {
+        score += 100
+      }
+
+      // 2. N-grams (pares de palavras consecutivas)
+      for (let i = 0; i < keywords.length - 1; i++) {
+        const bigram = `${keywords[i]} ${keywords[i + 1]}`
+        if (normSec.includes(bigram)) {
+          score += 45
+        }
+      }
+
+      // 3. Palavras-chave individuais e radicais
+      let distinctHits = 0
+      keywords.forEach((kw, i) => {
+        if (normSec.includes(kw)) {
+          score += 12
+          distinctHits++
+        } else if (stems[i] && stems[i].length >= 3 && normSec.includes(stems[i])) {
+          score += 8
+          distinctHits++
+        }
+      })
+
+      // 4. Bônus de densidade (múltiplas palavras da pergunta juntas no mesmo parágrafo)
+      if (distinctHits > 1) {
+        score += distinctHits * 15
+      }
+
+      return { idx, score, text: sec }
+    })
+
+    scoredSections.sort((a, b) => b.score - a.score)
+
+    const top = scoredSections[0]
+    if (!top || top.score === 0) {
+      return { excerpt: content.slice(0, maxChars), score: 1 }
+    }
+
+    // Combina o parágrafo vencedor com parágrafos adjacentes para contexto completo
+    let combined = top.text
+    let currentIdx = top.idx + 1
+    while (currentIdx < rawSections.length && combined.length < maxChars) {
+      const next = rawSections[currentIdx]
+      if (combined.length + next.length > maxChars + 300) break
+      combined += '\n\n' + next
+      currentIdx++
+    }
+
+    return {
+      excerpt: combined.slice(0, maxChars),
+      score: top.score,
+    }
+  }
+
+  /**
+   * Busca híbrida e granular na Base de Conhecimento (KBDocument)
    */
   public async searchKnowledgeBase(query: string, limit: number = 4): Promise<KBChunkMatch[]> {
     const docs = await prisma.kBDocument.findMany({
@@ -88,84 +206,90 @@ export class AIService {
 
     if (!docs.length) return []
 
-    const queryLower = this.normalizeText(query)
-    const queryTokens = this.tokenize(query)
+    const normQuery = this.normalizeText(query)
+    const keywords = this.getKeywords(query)
+    const stems = keywords.map(k => this.stem(k))
 
     const scoredDocs = docs.map(doc => {
       const normTitle = this.normalizeText(doc.title)
-      const normContent = this.normalizeText(doc.content)
       const normCat = this.normalizeText(doc.category)
-      const titleTokens = this.tokenize(doc.title)
-      const contentTokens = this.tokenize(doc.content)
-      const catTokens = this.tokenize(doc.category)
       let tags: string[] = []
       try {
         tags = JSON.parse(doc.tags || '[]')
       } catch (e) {
         tags = []
       }
-      const tagTokens = tags.flatMap(t => this.tokenize(t))
+      const normTags = tags.map(t => this.normalizeText(t))
 
-      let score = 0
+      let titleBonus = 0
+      if (normTitle.includes(normQuery)) {
+        titleBonus += 90
+      }
 
-      // Match em título vale mais
-      queryTokens.forEach(t => {
-        if (titleTokens.includes(t)) score += 8
-        if (catTokens.includes(t)) score += 4
-        if (tagTokens.includes(t)) score += 5
-        if (contentTokens.includes(t)) score += 2
+      keywords.forEach((kw, i) => {
+        if (normTitle.includes(kw)) titleBonus += 25
+        if (normCat.includes(kw)) titleBonus += 15
+        if (normTags.some(t => t.includes(kw))) titleBonus += 20
+        if (stems[i] && stems[i].length >= 3 && normTitle.includes(stems[i])) titleBonus += 15
       })
 
-      // Frase exata ou substring normalizada (sem acentos / case-insensitive)
-      if (queryLower.length > 2) {
-        if (normTitle.includes(queryLower)) score += 15
-        if (normCat.includes(queryLower)) score += 8
-        if (normContent.includes(queryLower)) score += 10
-      }
+      // Extrai o trecho mais relevante do conteúdo
+      const { excerpt, score: excerptScore } = this.extractRelevantExcerpt(doc.content, query)
+      const totalScore = excerptScore + titleBonus
 
       return {
         docId: doc.id,
         docTitle: doc.title,
         category: doc.category,
-        content: doc.content,
-        score,
+        content: excerpt, // Trecho específico extraído
+        score: totalScore,
         source: doc.source,
         filename: doc.filename || undefined,
       }
     })
 
     const matched = scoredDocs
-      .filter(d => d.score > 0)
+      .filter(d => d.score > 5)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
 
-    // Se encontrou correspondências com pontuação positiva, retorna os melhores
     if (matched.length > 0) {
       return matched
     }
 
-    // Se a busca exata não pontuou (ex: pergunta ampla ou coloquial), fornece os documentos mais recentes como contexto de apoio
+    // Se nenhuma busca pontuou, retorna os documentos institucionais mais recentes como contexto
     return docs.slice(0, Math.min(limit, 2)).map(doc => ({
       docId: doc.id,
       docTitle: doc.title,
       category: doc.category,
-      content: doc.content,
+      content: doc.content.slice(0, 1000),
       score: 1,
       source: doc.source,
       filename: doc.filename || undefined,
     }))
   }
 
-  private normalizeText(text: string): string {
-    return (text || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim()
+  public cleanAndFormatText(text: string): string {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+    const result: string[] = []
+
+    for (const line of lines) {
+      if (/^[•\-\*]\s*/.test(line)) {
+        result.push(`* ${line.replace(/^[•\-\*]\s*/, '')}`)
+      } else if (/^\d+\.\s*/.test(line)) {
+        result.push(`\n**${line}**`)
+      } else if (/^(entrega\s*\d|data|prazo|objetivo|formato|pontos|nota|requisitos)/i.test(line)) {
+        result.push(`📌 **${line}**`)
+      } else {
+        result.push(line)
+      }
+    }
+
+    return result.join('\n')
   }
 
   /**
-   * Gera resposta para o aluno no Chatbot usando RAG + Google Gemini
+   * Gera resposta para o aluno no Chatbot usando RAG + Google Gemini ou Síntese Local Inteligente
    */
   public async generateChatResponse(
     userMessage: string,
@@ -177,7 +301,7 @@ export class AIService {
     actions: { label: string; action: string; primary?: boolean }[]
     confidence: number
   }> {
-    // 1. Busca documentos relevantes no acervo institucional (RAG)
+    // 1. Busca trechos granulares na base institucional
     const matches = await this.searchKnowledgeBase(userMessage, 3)
 
     const sources = matches.map(m => ({
@@ -188,27 +312,28 @@ export class AIService {
 
     const genAI = this.getGenAI()
 
-    // 2. Executa geração com Google Gemini
+    // 2. Se a chave do Gemini estiver configurada, gera resposta via LLM oficial
     if (genAI) {
-      for (const modelName of ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-flash-latest']) {
+      const validModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro']
+      for (const modelName of validModels) {
         try {
           const model = genAI.getGenerativeModel({ model: modelName })
 
           const knowledgeContext = matches.length
-            ? matches.map((m, i) => `[DOCUMENTO ${i + 1}: ${m.docTitle} (Categoria: ${m.category})]\n${m.content}\n`).join('\n---\n')
+            ? matches.map((m, i) => `[DOCUMENTO INSTITUCIONAL ${i + 1}: ${m.docTitle} (Categoria: ${m.category})]\n${m.content}\n`).join('\n---\n')
             : 'Nenhum documento específico encontrado na base institucional para esta busca.'
 
           const studentProfile = student
             ? `Nome: ${student.name || 'Estudante'}, Curso: ${student.course || 'Graduação'}, Semestre: ${student.semester || 1}º, RA: ${student.ra || 'N/A'}`
             : 'Estudante FECAP'
 
-          const prompt = `Você é o Álvaro AI, o assistente virtual inteligente e oficial de atendimento da FECAP (Fundação Escola de Comércio Álvares Penteado).
-Seu objetivo é orientar alunos com clareza, empatia, cordialidade e rigor acadêmico, baseando-se estritamente nos documentos e normas institucionais da base de conhecimento da FECAP.
+          const prompt = `Você é o Álvaro AI, o assistente virtual oficial e acolhedor de atendimento ao estudante da FECAP (Fundação Escola de Comércio Álvares Penteado).
+Seu objetivo é orientar os alunos com clareza, rigor e simpatia, baseando-se estritamente nos documentos institucionais da base de conhecimento da FECAP fornecidos abaixo.
 
 INFORMAÇÕES DO ALUNO:
 ${studentProfile}
 
-DOCUMENTOS INSTITUCIONAIS RECUPERADOS (RAG):
+TRECHOS EXTRAÍDOS DA BASE DE CONHECIMENTO FECAP (RAG):
 ${knowledgeContext}
 
 HISTÓRICO DA CONVERSA:
@@ -217,12 +342,13 @@ ${history.slice(-4).map(h => `${h.role === 'user' ? 'Aluno' : 'Álvaro AI'}: ${h
 PERGUNTA DO ALUNO:
 "${userMessage}"
 
-DIRETRIZES DE RESPOSTA:
-1. Responda em Português do Brasil com linguagem educada, moderna e acolhedora.
-2. Use formatação Markdown elegante (listas com tópicos, negrito em prazos, valores e passos práticos).
-3. Se os documentos recuperados tiverem a resposta, explique de forma didática e mencione o documento fonte (ex: "De acordo com o Regulamento Institucional...").
-4. Se o documento contiver prazos, valores ou documentos necessários, liste-os claramente.
-5. Se a dúvida não estiver coberta nos documentos ou exigir análise de caso específico (ex: histórico individual, desconto pessoal), oriente o aluno gentilmente a abrir um chamado no ASA ou agendar atendimento no campus.`
+DIRETRIZES DE RESPOSTA OBRIGATÓRIAS:
+1. Responda em Português do Brasil com linguagem educada, acolhedora e precisa.
+2. Analise os trechos de documentos fornecidos e responda EXATAMENTE ao que foi perguntado.
+3. Se os trechos tiverem dados concretos (prazos, datas, notas/pontuação, etapas, regras ou formatos de entrega), liste-os de forma clara e objetiva usando listas e negrito.
+4. NUNCA dê uma resposta genérica ou vazia quando as informações estiverem presentes no texto fornecido.
+5. Mencione o documento fonte utilizado (ex: "De acordo com as diretrizes de [Título do Documento]...").
+6. Se a pergunta realmente não constar nos documentos, oriente o aluno a abrir um chamado com a equipe da Central de Atendimento (ASA).`
 
           const result = await model.generateContent(prompt)
           const responseText = result.response.text()
@@ -242,7 +368,7 @@ DIRETRIZES DE RESPOSTA:
       }
     }
 
-    // 3. Fallback inteligente local
+    // 3. Fallback inteligente local com extração semântica profunda
     return this.generateSmartFallback(userMessage, matches, student)
   }
 
@@ -269,12 +395,13 @@ DIRETRIZES DE RESPOSTA:
     const genAI = this.getGenAI()
 
     if (genAI) {
-      try {
-        const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' })
+      for (const modelName of ['gemini-1.5-flash', 'gemini-2.0-flash']) {
+        try {
+          const model = genAI.getGenerativeModel({ model: modelName })
 
-        const knowledgeContext = matches.map(m => `Doc: ${m.docTitle} - ${m.content.slice(0, 200)}`).join('\n')
+          const knowledgeContext = matches.map(m => `Doc: ${m.docTitle} - ${m.content.slice(0, 300)}`).join('\n')
 
-        const prompt = `Analise este chamado aberto por um aluno da faculdade FECAP e retorne uma análise estruturada para o atendente do ASA.
+          const prompt = `Analise este chamado aberto por um aluno da faculdade FECAP e retorne uma análise estruturada para o atendente do ASA.
 
 Título: "${title}"
 Categoria: "${category}"
@@ -292,22 +419,23 @@ Responda APENAS em formato JSON com as chaves:
   "confidence": 0.95
 }`
 
-        const res = await model.generateContent(prompt)
-        const textRes = res.response.text().replace(/```json|```/g, '').trim()
-        const parsed = JSON.parse(textRes)
+          const res = await model.generateContent(prompt)
+          const textRes = res.response.text().replace(/```json|```/g, '').trim()
+          const parsed = JSON.parse(textRes)
 
-        return {
-          intent: parsed.intent || `Solicitação sobre ${category}`,
-          category,
-          sentiment: parsed.sentiment || 'neutro',
-          confidence: parsed.confidence || 0.92,
-          summary: parsed.summary || `Chamado sobre ${title}.`,
-          recommendation: parsed.recommendation || `Orientar o aluno com base nos procedimentos de ${category}.`,
-          suggestedPriority: parsed.suggestedPriority || 'media',
-          sources: matches.map(m => ({ title: m.docTitle, filename: m.filename })),
+          return {
+            intent: parsed.intent || `Solicitação sobre ${category}`,
+            category,
+            sentiment: parsed.sentiment || 'neutro',
+            confidence: parsed.confidence || 0.92,
+            summary: parsed.summary || `Chamado sobre ${title}.`,
+            recommendation: parsed.recommendation || `Orientar o aluno com base nos procedimentos de ${category}.`,
+            suggestedPriority: parsed.suggestedPriority || 'media',
+            sources: matches.map(m => ({ title: m.docTitle, filename: m.filename })),
+          }
+        } catch (err: any) {
+          console.warn(`Erro na análise do chamado com ${modelName}:`, err.message?.slice(0, 100))
         }
-      } catch (err) {
-        console.warn('Erro na análise do chamado com Gemini (usando heurística):', err)
       }
     }
 
@@ -348,7 +476,7 @@ Responda APENAS em formato JSON com as chaves:
 
     if (!matches.length) {
       return {
-        content: `Olá, ${name}! Não encontrei uma regra específica para essa dúvida nos documentos institucionais cadastrados.\n\nPara que possamos te ajudar com segurança, você pode **abrir um chamado** para a equipe da Central de Atendimento (ASA) ou agendar um horário presencial no campus.`,
+        content: `Olá, ${name}! Não encontrei uma regra específica para essa dúvida nos documentos institucionais cadastrados.\n\nPara que possamos te orientar com segurança, você pode **abrir um chamado** para a equipe da Central de Atendimento (ASA) ou agendar um horário presencial no campus.`,
         sources: [],
         actions: [
           { label: 'Abrir Chamado no ASA', action: 'open_ticket', primary: true },
@@ -359,11 +487,18 @@ Responda APENAS em formato JSON com as chaves:
     }
 
     const best = matches[0]
-    const contentPreview = best.content.length > 350 ? best.content.slice(0, 350) + '...' : best.content
+    const formattedContent = this.cleanAndFormatText(best.content)
 
-    let response = `Olá, ${name}! Com base no documento institucional **"${best.docTitle}"** (${best.category}):\n\n`
-    response += `${contentPreview}\n\n`
-    response += `Se você precisar de maiores detalhes ou de uma análise individual, você também pode abrir um chamado direto para a equipe de atendimento.`
+    let response = `Olá, ${name}! Consultei os documentos institucionais da FECAP e localizei as seguintes orientações no documento **"${best.docTitle}"** (${best.category}):\n\n`
+    response += `${formattedContent}\n\n`
+
+    if (matches.length > 1 && matches[1].score > 25 && matches[1].docTitle !== best.docTitle) {
+      const second = matches[1]
+      const secondExcerpt = this.cleanAndFormatText(second.content).slice(0, 250)
+      response += `> 💡 **Informação complementar encontrada em "${second.docTitle}":**\n> ${secondExcerpt}...\n\n`
+    }
+
+    response += `Se precisar de orientações adicionais ou quiser formalizar uma solicitação, você também pode abrir um chamado direto para a equipe ASA.`
 
     const actions = this.deriveActions(query, matches)
 
@@ -371,7 +506,7 @@ Responda APENAS em formato JSON com as chaves:
       content: response,
       sources: matches.map(m => ({ title: m.docTitle, filename: m.filename, category: m.category })),
       actions,
-      confidence: 0.88,
+      confidence: 0.92,
     }
   }
 
@@ -397,16 +532,6 @@ Responda APENAS em formato JSON com as chaves:
     }
 
     return actions
-  }
-
-  private tokenize(text: string): string[] {
-    return text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(t => t.length > 2)
   }
 }
 
