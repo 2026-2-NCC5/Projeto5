@@ -1,7 +1,6 @@
 {
-  "buildCommand": "npm --prefix \"src/Entrega 1/Frontend\" run build",
-  "outputDirectory": "src/Entrega 1/Frontend/dist",
-  "installCommand": "npm --prefix \"src/Entrega 1/Frontend\" install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/api/:path*",
