@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Álvaro AI — Projeto Interdisciplinar FECAP",
   "scripts": {
+    "build": "npm --prefix \"src/Entrega 1/Frontend\" run build",
     "install:backend": "npm --prefix \"src/Entrega 1/Backend\" install",
     "install:frontend": "npm --prefix \"src/Entrega 1/Frontend\" install",
     "install:all": "npm run install:backend && npm run install:frontend",
@@ -12,8 +13,12 @@
     "dev": "concurrently -n \"frontend,backend\" -c \"cyan,magenta\" \"npm run dev:frontend\" \"npm run dev:backend\"",
     "build:frontend": "npm --prefix \"src/Entrega 1/Frontend\" run build",
     "build:backend": "npm --prefix \"src/Entrega 1/Backend\" run build",
+    "start": "cd \"src/Entrega 1/Backend\" && npx tsx src/index.ts",
+    "start:backend": "npm --prefix \"src/Entrega 1/Backend\" start",
     "seed": "npm --prefix \"src/Entrega 1/Backend\" run seed",
-    "db:push": "npm --prefix \"src/Entrega 1/Backend\" run db:push"
+    "db:push": "npm --prefix \"src/Entrega 1/Backend\" run db:push",
+    "render:build": "cd \"src/Entrega 1/Backend\" && npm install && npx prisma db push && npx prisma generate && npx tsx src/seed.ts",
+    "render:start": "cd \"src/Entrega 1/Backend\" && npx tsx src/index.ts"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"

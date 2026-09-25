@@ -1,4 +1,7 @@
 {
+  "buildCommand": "npm --prefix \"src/Entrega 1/Frontend\" run build",
+  "outputDirectory": "src/Entrega 1/Frontend/dist",
+  "installCommand": "npm --prefix \"src/Entrega 1/Frontend\" install",
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -6,7 +9,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/"
+      "destination": "/index.html"
     }
   ]
 }
