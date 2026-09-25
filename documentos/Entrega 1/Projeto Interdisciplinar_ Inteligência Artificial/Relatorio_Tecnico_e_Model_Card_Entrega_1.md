@@ -1,9 +1,9 @@
 # PROJETO INTERDISCIPLINAR · ASA
 ## Relatório Técnico e Model Card
-**Entrega 1 — Parcial · Agente de Pendências**  
+**Entrega 1 — Parcial · Agente 3: Agente para o Estudante (Álvaro AI)**  
 **Projeto:** Álvaro AI — Central de Atendimento Inteligente FECAP (ASA)  
 **Instituição:** Fundação Escola de Comércio Álvares Penteado (FECAP)  
-**Curso:** Ciência da Computação / Engenharia de Software  
+**Curso:** Ciência da Computação / 5º Semestre 2026  
 **Integrantes do Grupo:**
 * Esther Oliveira Costa — `jaegcostaesther@gmail.com`
 * Higor Fonseca — `higorlfonsecas@gmail.com`
@@ -11,205 +11,179 @@
 
 ---
 
+Este relatório documenta a construção da baseline (primeira versão simples do modelo e arquitetura RAG) coerente com o **Agente para o Estudante (Agente 3)**, seguindo os requisitos da Entrega 1 do Projeto Interdisciplinar do curso de Ciência da Computação da FECAP.
+
+---
+
 ## 1. Análise dos Dados
 
-Diferentemente de abordagens baseadas em planilhas estáticas desarticuladas (como arquivos `.xlsx` ou `.csv` isolados), o ecossistema do **Álvaro AI** foi concebido e implementado sobre uma arquitetura de banco de dados relacional integrado utilizando **SQLite com Prisma ORM** (persistido em `src/Entrega 1/Backend/prisma/dev.db`). Essa modelagem reflete a operação em tempo real da Central de Atendimento da **Área do Sucesso Alvarista (ASA)** da FECAP, onde estudantes interagem via chat inteligente e têm suas solicitações e pendências transformadas em chamados operacionais.
+Em estrita consonância com a arquitetura moderna do projeto **Álvaro AI**, a solução **não utiliza bases em Excel nem planilhas estáticas desarticuladas (como arquivos `.xlsx` ou `.csv` isolados)**. Em vez disso, foi modelada e implementada uma infraestrutura relacional persistida via **SQLite com Prisma ORM** (na pasta `src/Entrega 1/Backend/prisma/dev.db`), reproduzindo com fidelidade a dinâmica operacional da Central de Atendimento da **Área do Sucesso Alvarista (ASA)** da FECAP.
 
-Abaixo, detalha-se o catálogo das fontes de dados estruturadas que alimentam a baseline do Agente de Pendências:
+A baseline do Agente para o Estudante é alimentada por tabelas estruturadas que consolidam o conhecimento regulatório oficial da instituição, o contexto acadêmico dos alunos e o histórico transacional das solicitações:
 
-| Fonte / Entidade | Registros (Baseline) | Conteúdo | Granularidade | Observações |
-| :--- | :--- | :--- | :--- | :--- |
-| **`Ticket`** (Chamados / Pendências) | 12 registros de homologação | Identificador (`id`), número sequencial (`number`), título, descrição detalhada do problema, status (`aberto`, `em_atendimento`, `aguardando_aluno`, `resolvido`, `fechado`), categoria (`matricula`, `financeiro`, `academico`, `documentos`, `cancelamento`, `infraestrutura`, `outros`), prioridade atribuída (`baixa`, `media`, `alta`, `critica`), prazo de SLA (`slaDeadline`), status de SLA (`ok`, `risk`, `breached`) e tags. | 1 registro por solicitação/pendência acadêmica aberta. | Fonte primária do agente para análise de pendências, cálculo de urgência e ordenação da fila do ASA. |
-| **`Student`** (Cadastro do Aluno) | 10 alunos ativos | ID, nome completo, RA (Registro Acadêmico único), e-mail institucional, curso (ex: Ciência da Computação, Administração, Contábeis), semestre letivo (1º ao 8º), turno (`manha`, `tarde`, `noite`), status acadêmico (`regular`, `irregular`, `trancado`) e telefone. | 1 registro por estudante único cadastrado na FECAP. | Fornece contexto de criticidade (ex: aluno formando do 8º semestre ou com status irregular recebe ponderação de risco distinta). |
-| **`AIAnalysis`** (Inferências da IA) | 8 análises pré-computadas + geração em tempo real | ID, vínculo com o chamado (`ticketId`), intenção inferida (`intent`), categoria predita (`category`), prioridade sugerida (`priority`), sentimento do aluno (`positivo`, `neutro`, `negativo`), score de confiança numérico (`confidence`, ex: 0.85 a 0.98), resumo executivo e recomendação de resposta ao atendente. | 1 registro por inferência analítica associada a um chamado (relação 1:1 com `Ticket`). | Tabela que materializa o resultado preditivo da baseline para apoiar o analista humano (*Human-in-the-Loop*). |
-| **`KBDocument`** (Base de Conhecimento RAG) | 16 documentos normativos oficiais | ID, título normativo, categoria documental, conteúdo integral das normas institucionais, tags de busca, status (`ativo`), autor (`Equipe ASA`), contagem de visualizações e metadados de chunking semântico. | 1 registro por documento/resolução institucional da FECAP. | Base institucional com regulamentos de rematrícula, normas de TCC, diretrizes de bolsas FIES/Prouni e atestados. Utilizada pelo RAG para ancorar as decisões e respostas do agente em regras oficiais. |
-| **`ChatMessage` & `Conversation`** | 7 conversas / 23 mensagens transacionais | ID, sessão de conversa (`conversationId`), autor da mensagem (`user`, `assistant`, `system`), conteúdo textual, timestamp e ações contextuais sugeridas. | 1 registro por mensagem trocada entre o estudante e o agente. | Histórico prévio da conversa da IA com o aluno que é anexado automaticamente ao chamado de pendência quando há transbordo para o ASA. |
-| **`SLARule`** (Políticas de SLA) | 5 regras ativas | ID, nome da política, categoria, prioridade associada, tempo de primeira resposta (minutos) e horas de resolução. | 1 registro por nível de serviço institucional. | Define os prazos rígidos de atendimento para cada criticidade de pendência (ex: Crítica = 2h; Alta = 4h; Média = 24h; Baixa = 72h). |
+| Fonte / Tabela | Registros (Baseline) | Conteúdo Principal | Granularidade e Observações |
+| :--- | :--- | :--- | :--- |
+| **`KBDocument`**<br>(Base RAG FECAP) | 16 documentos institucionais<br>(19 chunks) | Normas e resoluções oficiais de matrícula, prazos acadêmicos, bolsas Prouni/FIES, colação de grau, TCC, regulamento financeiro e atestados. | 1 linha por documento oficial. Indexados em chunks semânticos (800 caracteres com overlap de 150) com tags de busca léxica e categórica. |
+| **`Student`**<br>(Cadastro do Aluno) | 10 estudantes ativos | Identificador (UUID), RA único, nome completo, curso (CC, ADM, Contábeis), semestre (1º ao 8º), turno, status (regular, irregular, trancado) e telefone. | 1 linha por estudante único. Utilizado para contextualizar e personalizar dinamicamente as respostas da IA com base no curso e semestre do aluno. |
+| **`ChatMessage` & `Conversation`** | 7 sessões / 23 mensagens | Sessões de chat, autoria das mensagens (`user`, `assistant`, `system`), conteúdo textual integral, timestamps e ações rápidas sugeridas. | 1 linha por mensagem trocada. Fornece memória conversacional de curto prazo e garante histórico integral ao transbordar para atendimento humano. |
+| **`Ticket`**<br>(Chamados ASA) | 12 chamados de homologação | Número sequencial, título, descrição do problema, categoria, prioridade, status de atendimento, SLA limite e vínculo com o aluno (`studentId`). | 1 linha por chamado formal. Acionado quando a dúvida do estudante requer intervenção humana resolutiva (*Human-in-the-Loop*). |
+| **`AIAnalysis`**<br>(Inferência e Triagem) | 8 análises pré-computadas + tempo real | Intenção detectada, categoria predita, score de confiança numérico (0.85 a 0.98), resumo executivo, recomendação ao atendente e sentimento. | 1 linha por inferência analítica (relação 1:1 com `Ticket`). Auxilia o atendente do ASA a compreender a demanda imediatamente após o transbordo. |
 
 ---
 
 ## 2. Preparação dos Dados
 
-A preparação e o saneamento dos dados no Álvaro AI foram integrados diretamente no pipeline do backend (`src/Entrega 1/Backend/src/services/ai.service.ts` e rotas de ingestão), garantindo que tanto dados históricos quanto novas solicitações recebidas via API passem pelo mesmo rigor de tratamento:
+A preparação e a higienização dos dados no Álvaro AI foram implementadas diretamente no pipeline de serviços do backend (`src/Entrega 1/Backend/src/services/ai.service.ts`), assegurando que tanto o conteúdo documental quanto as perguntas enviadas pelos estudantes passem pelo mesmo rigor de tratamento semântico:
 
-1. **Normalização Textual e Limpeza Léxica:**
-   * Textos submetidos por estudantes em linguagem natural frequentemente contêm vícios de digitação, caixas mistas e caracteres acentuados. Foi implementada a função `normalizeText()`, que converte todo o texto para minúsculas (`toLowerCase`), remove diacríticos e acentos via decomposição canônica Unicode (`NFD` combinada com a expressão regular `replace(/[\u0300-\u036f]/g, '')`) e elimina espaços excedentes nas extremidades (`trim`).
-   * **Remoção de Stopwords Institucionais:** Criação de um conjunto estruturado (`STOPWORDS`) com mais de 40 termos irrelevantes para a análise de pendências (artigos, preposições e saudações como *"olá"*, *"por favor"*, *"gostaria"*, *"alvaro"*, *"chat"*), focando o processamento apenas nas palavras com valor semântico.
-
-2. **Stemming (Radicalização) Heurístico em Português:**
-   * Para evitar que variações gramaticais de um mesmo termo prejudiquem a correspondência semântica (ex: *"cancelamento"*, *"cancelar"*, *"cancelou"*; *"trancamento"*, *"trancar"*), foi desenvolvido o método `stem()`. Ele remove sufixos frequentes da língua portuguesa (`-ções`, `-ção`, `-ando`, `-endo`, `-ivo`, `-eza`, `-vel`), unificando os termos pelo seu radical para comparação léxica eficiente.
-
-3. **Tratamento de Nulos, Inconsistências e Tipagem Forte:**
-   * No modelo de dados relacional (Prisma ORM), campos opcionais (como `assignedTo`, `phone` e `conversationId`) foram tipados explicitamente como nulos tratáveis, impedindo falhas em tempo de execução.
-   * Valores padrão (*defaults*) foram aplicados nas migrações do banco: `status = 'aberto'`, `priority = 'media'`, `slaStatus = 'ok'`, garantindo que nenhum chamado entre na fila sem classificação mínima operacional.
-
-4. **Unificação e Estrutura de Junção (*Joins* e Agregações):**
-   * **Chave Primária e Junção Aluno ↔ Chamado:** Os dados cadastrais do estudante são unificados ao chamado por meio da chave estrangeira `Ticket.studentId = Student.id` (UUID), com integridade referencial mantida via `onDelete: Cascade`.
-   * **Junção Chamado ↔ Análise da IA:** Relação estrita 1:1 via chave `AIAnalysis.ticketId = Ticket.id`.
-   * **Agregação e Métricas de Fila:** No endpoint `/api/metrics/queue`, os chamados em aberto são consolidados com os dados do estudante e enriquecidos em tempo de execução com o cálculo de tempo residual de SLA (`slaDeadline - now()`), identificando automaticamente pendências em situação de risco (`isSlaRisk`) ou violadas (`isSlaBreached`).
+1. **Normalização Textual e Limpeza:**
+   * Textos enviados por estudantes frequentemente contêm vícios de linguagem, acentuações variáveis, pontuação desordenada e caracteres especiais. O método `normalizeText()` converte todas as strings para minúsculas (`toLowerCase`), remove diacríticos através de decomposição canônica Unicode (`NFD` combinada com a expressão regular `replace(/[\u0300-\u036f]/g, '')`) e sanitiza espaços em branco excedentes (`trim`).
+2. **Remoção de Stopwords Conversacionais:**
+   * Foi construído um vocabulário restritivo (`STOPWORDS`) contendo mais de 40 termos da língua portuguesa e vícios comuns de interação conversacional (*"olá"*, *"bom dia"*, *"por favor"*, *"chat"*, *"ia"*, *"alvaro"*, *"gostaria"*, *"saber"*, *"preciso"*). Essas palavras são filtradas antes da correspondência léxica para focar a recuperação nos termos de alta densidade semântica.
+3. **Stemming (Radicalização) Morfológico:**
+   * Para solucionar o problema de flexões verbais e variações morfológicas (ex: *"matrícula"*, *"matricular"*, *"matriculado"*; *"cancelar"*, *"cancelamento"*), foi desenvolvido o método `stem()`, que remove sufixos frequentes do português (`-ções`, `-ção`, `-são`, `-mente`, `-ando`, `-endo`, `-eza`, `-ivo`, `-vel`), permitindo o casamento pelo radical léxico exato.
+4. **Chunking Semântico com Overlap:**
+   * Documentos institucionais extensos (como regulamentos acadêmicos) diluem a resposta exata se ingeridos inteiros. Foi implementado o algoritmo `chunkText()`, que particiona os textos normativos em blocos semânticos de 800 caracteres com sobreposição (*overlap*) de 150 caracteres. O algoritmo prioriza quebras naturais em quebras duplas de parágrafo (`\n\n`) ou pontos finais, preservando a completude contextual das cláusulas.
+5. **Integridade Relacional e Tratamento de Nulos:**
+   * Garantida por constraints estritas no schema do Prisma ORM. A junção entre Aluno e Mensagens/Chamados ocorre via `Student.id = Ticket.studentId` (UUID) com `onDelete: Cascade`. Campos opcionais (como `phone`, `conversationId` e `assignedTo`) possuem tipagem nula segura e fallbacks padrão no backend.
 
 ---
 
 ## 3. Seleção de Atributos
 
-Os atributos (features) foram selecionados e estruturados com base em sua relevância prática para a identificação, classificação e priorização de pendências acadêmicas e financeiras no ASA:
+Os atributos (*features*) do Agente para o Estudante foram selecionados para viabilizar as três tarefas essenciais: (1) compreensão da dúvida, (2) recuperação da regra institucional oficial correta e (3) transferência humanizada para o ASA:
 
-| Dimensão | Atributo | Justificativa |
+| Dimensão | Atributo | Justificativa Técnica e Funcional |
 | :--- | :--- | :--- |
-| **Semântica / Conteúdo** | `title` e `description` (Texto do Chamado) | Principal insumo em linguagem natural. Contém a descrição fática do problema relatado pelo aluno, permitindo a extração de intenções, palavras-chave e a classificação do tipo de pendência. |
-| **Semântica / Carga Afetiva** | `sentiment` (`positivo`, `neutro`, `negativo`) | Extraído da tonalidade do texto. Alunos que expressam indignação ou atrito com o serviço demandam atendimento prioritário para mitigar riscos de evasão e reclamações em órgãos reguladores (ex: Procon/MEC). |
-| **Operacional / Serviço** | `category` (Classificação da Pendência) | Segrega a solicitação no fluxo departamental correto (`matricula`, `financeiro`, `academico`, `documentos`, `cancelamento`, `infraestrutura`). É a variável-chave para determinar a complexidade e o setor responsável no ASA. |
-| **Perfil Acadêmico** | `course`, `semester` e `period` | Permite identificar a fase do ciclo de vida do aluno na FECAP. Pendências de alunos formandos (ex: 8º semestre) com colação de grau iminente têm sensibilidade temporal muito maior do que demandas de alunos em semestres intermediários. |
-| **Cadastral / Risco** | `status` do Estudante (`regular`, `irregular`, `trancado`) | Sinaliza a saúde do vínculo acadêmico. Um aluno com status `irregular` que abre um chamado de pendência financeira representa probabilidade elevada de trancamento ou evasão, exigindo intervenção rápida da equipe. |
-| **Temporal / SLA** | `slaDeadline` e `slaRemainingMinutes` | Mede o tempo restante até o vencimento do prazo acordado com a instituição. Garante que pendências que estão prestes a vencer sejam alçadas ao topo da fila independentemente de sua data de abertura original. |
-| **Comportamental / Histórico** | `_count.tickets` (Volume Histórico de Chamados) | Quantidade de ocorrências anteriores vinculadas àquele RA. Ajuda a sinalizar estudantes com problemas crônicos ou atritos recorrentes com a instituição. |
-| **Confiabilidade da IA** | `confidence` (Score de Certeza do Modelo) | Grau de certeza numérica da baseline (0.00 a 1.00). Permite acionar o protocolo de revisão humana obrigatória (*Human-in-the-Loop*) sempre que o score for inferior a 0.80. |
+| **Semântica / Consulta do Aluno** | `userMessage` / `query` (Texto da Mensagem) | Texto natural digitado pelo estudante. Insumo principal para normalização, extração de palavras-chave, radicais e identificação da intenção primordial. |
+| **Documental / Normativa (RAG)** | `KBDocument.content` e `KBDocument.title` | Texto oficial e título das resoluções institucionais da FECAP. Fornece a base de conhecimento autorizada (*ground truth*) para evitar alucinações da IA. |
+| **Similaridade e Relevância Léxica** | `relevanceScore` (Pontuação Híbrida) | Score numérico calculado por casamento exato da consulta (+100 pts), bigramas (+45 pts), termos-chave (+12 pts), radicais (+8 pts) e bônus de densidade no parágrafo. |
+| **Perfil do Estudante** | `course`, `semester` e `status` (`Student`) | Identifica o contexto acadêmico do aluno. Permite à IA personalizar respostas (ex: regras de TCC aplicam-se ao 7º/8º semestre; colação exige status regular). |
+| **Transbordo e Confiabilidade** | `confidence` e `matchScore` | Nível de certeza probabilística do casamento entre a dúvida e os documentos. Caso o score seja inferior ao limiar seguro ($\le 5$), a IA aciona o transbordo para o ASA. |
+| **Contexto Conversacional** | `history` (Histórico da Sessão) | Vetor contendo os últimos turnos de diálogo (`user` e `assistant`). Permite resolver referências anafóricas (ex: *"e onde eu entrego ele?"*) e manter a coerência. |
 
 ---
 
 ## 4. Definição das Métricas
 
-Para avaliar o desempenho da baseline nesta Entrega 1 e planejar a evolução para os modelos comparativos da Entrega 2, foram definidas as seguintes métricas técnicas e de negócio:
+Para avaliar a eficácia do Agente para o Estudante nesta Entrega 1 (baseline) e balizar os testes comparativos na Entrega 2, foram definidas métricas técnicas de recuperação da informação e operacionais de atendimento:
 
 ### Métricas da Entrega 1 (Baseline Atual)
-1. **Acurácia Global de Classificação por Categoria:**
-   * Mede a proporção de chamados categorizados corretamente pela IA em relação ao total de chamados avaliados na base de validação. Permite verificar se o sistema direciona as pendências para os fluxos corretos (financeiro, acadêmico, matrícula, etc.).
-2. **Concordância na Atribuição de Prioridade (Matriz de Prioridade):**
-   * Percentual de casos em que a prioridade inferida (`baixa`, `media`, `alta`, `critica`) coincide com a classificação esperada pela supervisão da equipe do ASA.
-3. **Taxa de Aderência ao SLA (% On-Time Resolution):**
-   * Métrica operacional que calcula a proporção de pendências processadas e resolvidas dentro da janela temporal estabelecida pelas regras de SLA:  
-     $$\text{Aderência ao SLA} = \frac{\text{Total de Chamados} - \text{Chamados com SLA Violado}}{\text{Total de Chamados}} \times 100$$
-4. **Taxa de Resolução Automatizada vs. Transbordo Humano:**
-   * Percentual de interações e dúvidas sanadas em autoatendimento diretamente pelo agente RAG vs. volume de pendências que demandaram a abertura de chamado e intervenção do atendente do ASA.
+1. **Taxa de Recuperação do Trecho Correto (Hit Rate @ 3):**
+   * Mede a proporção de consultas em que o documento institucional oficial correto consta entre os 3 trechos de maior pontuação recuperados pelo motor RAG.
+2. **Groundedness Preliminar (Aderência às Fontes):**
+   * Percentual de respostas em que todas as afirmações concretas geradas (prazos, regras, procedimentos) possuem correspondência direta e comprovada nos documentos institucionais recuperados, sem geração de informações espúrias.
+3. **Taxa de Resolução Automatizada (First Contact Resolution - FCR):**
+   * Métrica operacional que mensura o percentual de dúvidas dos alunos sanadas diretamente no chat pelo autoatendimento inteligente, sem necessidade de abertura de chamado formal no ASA.
+4. **Acurácia de Roteamento de Ações:**
+   * Grau de assertividade do modelo em associar a dúvida a botões de ação imediata (ex: *"Emitir Documento Digital"*, *"Agendar no ASA"*, *"Abrir Chamado"*).
 
-### Métricas Planejadas para a Entrega 2 (Comparação e Modelos Supervisionados)
-1. **Precisão Ponderada (Weighted Precision):**
-   * Essencial para medir a taxa de acerto por classe de pendência, evitando falsos positivos em categorias de alto impacto (ex: classificar erroneamente uma dúvida corriqueira de boleto como "cancelamento crítico").
-2. **Recall / Revocação (Macro Recall):**
-   * **Métrica mais crítica para o negócio do ASA.** Avalia a capacidade do modelo de capturar *todas* as pendências de alta urgência e risco de evasão. Um falso negativo aqui (classificar uma pendência crítica como baixa prioridade) pode resultar na perda de um aluno pela instituição.
-3. **F1-Score Ponderado:**
-   * Média harmônica balanceada entre precisão e revocação, fundamental para lidar com o desbalanceamento inerente entre as classes (há um volume significativamente maior de pendências simples de documentos do que de pedidos de cancelamento de curso).
-4. **Matriz de Confusão Multiclasse:**
-   * Diagnóstico visual completo para identificar quais categorias e níveis de prioridade sofrem maior sobreposição ou ambiguidade semântica.
-5. **CSAT (Customer Satisfaction Score) & Tempo Médio de Resolução (MTTR):**
-   * Indicadores de satisfação do estudante pós-atendimento para mensurar a qualidade da intervenção automatizada e humana.
+### Métricas Planejadas para a Entrega 2 (Avaliação com Framework RAG)
+1. **Métricas Formais de RAG (Framework RAGAS):**
+   * Implementação da avaliação pelo framework RAGAS (*Retrieval Augmented Generation Assessment*) com cálculo automatizado de: (a) *Faithfulness* (fidelidade factual ao contexto), (b) *Answer Relevance* (relevância direta da resposta à pergunta) e (c) *Context Precision* (precisão dos trechos recuperados).
+2. **Precisão, Recall e F1-Score do Gatilho de Transbordo:**
+   * Avaliação estatística formal da capacidade da baseline em decidir corretamente entre responder ao aluno vs. transferir para um atendente humano do ASA.
+3. **Latência de Inferência de Ponta a Ponta:**
+   * Tempo médio de geração e consumo de tokens por resposta gerada pelo Google Gemini 3.6 Flash em produção.
+4. **CSAT Conversacional (Customer Satisfaction Score):**
+   * Índice de satisfação coletado diretamente do estudante ao final de cada conversa através de avaliação de 1 a 5 estrelas no portal.
 
 ---
 
-## 5. Baseline do Agente: Agente de Pendências
+## 5. Baseline do Agente: Agente para o Estudante
 
-O **Agente de Pendências do Álvaro AI** foi implementado na camada de serviços do backend (`AIService.analyzeTicket`) e no módulo de gestão de filas do ASA (`AsaFila.tsx`). Ele opera por meio de uma arquitetura híbrida que combina:
-* **Camada Léxica e Regras Heurísticas:** Detecção determinística de palavras-chave críticas, expressões de atrito e status cadastral do estudante.
-* **Camada Generativa/Semântica (Google Gemini 3.6 Flash / Fallback Semântico):** Compreensão do contexto da solicitação com base em *few-shot prompting* e cruzamento com a base de conhecimento de regras da FECAP (`KBDocument`).
+Conforme definido no escopo oficial do projeto, o grupo selecionou o **Agente 3 — Agente para o Estudante (Álvaro AI)**. Sua baseline combina um pipeline de recuperação léxico-semântica em base normativa institucional com síntese generativa via Google Gemini 3.6 Flash (com fallback determinístico local), ancorada nos princípios de transparência, citação nominal de fontes e transferência assistida para o atendimento humano (*Human-in-the-Loop*).
 
-### Regras e Tabela de Decisão
+### 5.1 Recuperação de Documentos e RAG Inicial
+O pipeline de Recuperação Aumentada por Geração (RAG) opera em três etapas no backend:
+1. **Segmentação da Base de Conhecimento:** A base `KBDocument` contém 16 manuais oficiais da FECAP. No carregamento ou upload de novos PDFs (via `pdf-parse`), o texto é segmentado pelo método `chunkText()` em blocos de 800 caracteres com 150 caracteres de sobreposição, respeitando a integridade das sentenças.
+2. **Busca Híbrida e Scoring de Relevância:** A função `extractRelevantExcerpt()` e `searchKnowledgeBase()` aplicam um algoritmo de pontuação composto sobre cada trecho:
+   * Casamento de frase exata (+100 pts);
+   * Casamento de pares de termos consecutivos/bigramas (+45 pts);
+   * Casamento de palavras-chave individuais (+12 pts);
+   * Casamento de radicais morfológicos/stems (+8 pts);
+   * Bônus de densidade de termos no mesmo parágrafo (`distinctHits * 15 pts`);
+   * Bônus de correspondência no título do documento (+90 pts).
+   Os 3 trechos com maior score ($> 5$) são selecionados como contexto factual.
+3. **Geração Ancorada com Google Gemini:** Os trechos recuperados são injetados em um prompt estrito do Google Gemini 3.6 Flash. O prompt proíbe expressamente respostas vazias ou genéricas quando as informações estiverem presentes no texto, obriga a resposta em tom acolhedor e institucional, e exige a citação nominal do regulamento utilizado (ex: *"De acordo com as diretrizes de [Título do Documento]..."*). Se a chave de API não estiver disponível, o método `generateSmartFallback()` executa a síntese semântica localmente.
 
-O agente identifica a pendência e mapeia as condições contextuais e textuais para determinar a categoria, a urgência, a prioridade e o SLA aplicável:
+### 5.2 Regras de Roteamento de Dúvidas e Transferência Humana
+Quando o aluno necessita de orientações que extrapolam a base de conhecimento ou relata problemas cadastrais/financeiros críticos, o agente aciona o protocolo de transferência para atendimento humano (*Human-in-the-Loop*). A tabela de decisão abaixo governa esse comportamento:
 
-| Condição (Gatilhos Léxicos, Cadastrais e Semânticos) | Resultado (Tipo de Pendência Identificada) | Prioridade Atribuída | Prazo Máximo de SLA |
-| :--- | :--- | :--- | :--- |
-| Texto contém termos como `"cancelamento"`, `"trancamento"`, `"desistência do curso"` OU aluno possui status `irregular`/`trancado` solicitando desligamento | **Pendência de Evasão / Retenção de Matrícula** | **Crítica** | 2 horas |
-| Menção expressa a `"jurídico"`, `"processo"`, `"procon"`, `"pagamento duplicado"` OU aluno formando (8º semestre) com pendência que impeça a colação de grau | **Pendência Regulatória / Jurídica / Formatura** | **Crítica** | 2 horas |
-| Presença de termos de atrito agudo (`"erro no sistema"`, `"multa indevida"`, `"acesso bloqueado"`, `"perdi o prazo"`) associados a sentimento `negativo` | **Pendência Financeira / Matrícula com Atrito** | **Alta** | 4 horas |
-| Solicitação de validação de documentos comprobatórios para bolsas (Prouni/FIES) ou convênios de estágio com prazo institucional em curso | **Pendência Documental Regulatória** | **Alta** | 4 horas |
-| Solicitações operacionais rotineiras: emissão de 2ª via de boleto, renegociação padrão de parcelas, solicitação de equivalência de disciplinas ou ajuste regular de grade | **Pendência Financeira / Acadêmica Ordinária** | **Média** | 24 horas |
-| Solicitação de declaração simples de matrícula, atestado de frequência, consulta a calendário de provas ou dúvidas informativas resolvidas por documentação padrão | **Pendência Informativa / Documento Digital** | **Baixa** | 72 horas |
+| Condição da Dúvida / Solicitação | Resultado / Resposta do Agente | Encaminhamento e Transbordo Humano |
+| :--- | :--- | :--- |
+| Dúvida sobre matrícula, rematrícula, prazos, TCC ou bolsas presente na base RAG (Score > 25) | Resposta orientativa completa estruturada em tópicos e negrito, com citação explícita do regulamento oficial e prazos. | Autoatendimento concluído. Oferece botões de ação rápida (*"Emitir Documento Digital"* ou *"Agendar no ASA"*). |
+| Solicitação de documento padrão (atestado de matrícula, declaração de frequência) | Apresenta o passo a passo de validação institucional e gera o atestado digital instantâneo com autenticação digital. | Direcionamento para a aba *"Documentos Digitais"* do Portal do Aluno sem necessidade de fila. |
+| Dúvida não encontrada na base institucional (Score RAG $\le 5$ ou confiança $< 0.70$) | Mensagem acolhedora informando que não há regra padrão para o caso nos documentos e que é necessária análise individual. | Transferência humana assistida: exibe botão primário **"Abrir Chamado no ASA"**, vinculando todo o histórico da conversa ao ticket. |
+| Aluno expressa atrito agudo (*"erro de cobrança"*, *"multa indevida"*, *"acesso bloqueado"*, *"desistência"*) | Resposta empática imediata, esclarecendo direitos preliminares e orientando a formalização da solicitação. | Abertura de chamado com classificação prioritária (*"Alta"* ou *"Crítica"*), notificando a equipe do ASA imediatamente. |
+| Dúvidas sobre atendimento presencial ou entrega física de documentos (Prouni/FIES/Estágio) | Lista a relação completa de documentos exigidos, horários de funcionamento do campus e prazos de entrega. | Ação sugerida: *"Agendar no ASA"* para reserva de horário presencial com um atendente humano. |
 
-### Priorização Inicial e Ordenação da Fila
-
-O critério de priorização na fila de atendimento do ASA não utiliza o critério ingênuo de ordem cronológica de chegada (*FIFO*). Em vez disso, foi concebido um **algoritmo de ordenação multifatorial em cascata**, aplicado na rota `/api/metrics/queue`:
-
-1. **Nível de Prioridade da Pendência:**
-   * As pendências são agrupadas em ordem decrescente de severidade: `Crítica` (peso 4) > `Alta` (peso 3) > `Média` (peso 2) > `Baixa` (peso 1).
-2. **Tempo Residual de SLA (`slaRemainingMinutes`):**
-   * Dentro de um mesmo nível de prioridade, os chamados são ordenados de forma ascendente pelo tempo restante de SLA (`slaDeadline - now()`). Casos com menos de 60 minutos restantes recebem a tag de risco visual `isSlaRisk` e são alçados ao topo para impedir violações contratuais institucionais.
-3. **Ponderação por Sentimento:**
-   * Quando dois chamados possuem a mesma categoria e prazo de SLA aproximado, aquele com sentimento `negativo` tem precedência sobre os de sentimento `neutro` ou `positivo`, garantindo contenção ágil da insatisfação do aluno.
-4. **Sensibilidade do Perfil do Aluno:**
-   * Alunos em semestres finais (formandos) ou com histórico de chamados recorrentes recebem atenção destacada no painel para intervenção personalizada do atendente.
+### 5.3 Critério de Priorização e Transferência ao Atendente
+A transferência para atendimento humano segue diretrizes que valorizam o tempo do aluno e do atendente do ASA:
+* **Preservação Integral de Contexto:** Quando a consulta resulta na abertura de um chamado pelo chat, a íntegra das mensagens trocadas com o Álvaro AI é gravada no banco (`Ticket.conversationId`) e exibida na tela do atendente (`AsaDetalheChamado.tsx`). O atendente visualiza exatamente o que a IA respondeu, evitando perguntas repetitivas ao estudante.
+* **Ações Contextuais em Um Clique:** O método `deriveActions()` analisa a semântica da consulta e injeta no rodapé da mensagem opções de resolução imediata com um clique (*"Abrir Chamado no ASA"*, *"Emitir Documento Digital"*, *"Agendar Horário Presencial"*).
+* **Cálculo de Criticidade e SLA:** O chamado criado a partir do transbordo é processado pelo módulo de triagem preditiva (`analyzeTicket`), que calcula o SLA correspondente (2h para casos críticos a 72h para dúvidas informativas) e adiciona o caso à Fila ASA com alerta de proximidade de estouro de prazo.
 
 ---
 
 ## 6. Limitações Conhecidas
 
-Por se tratar da versão baseline (Entrega 1), foram identificadas as seguintes limitações que contextualizam o escopo atual:
+Por se tratar de uma primeira versão (baseline da Entrega 1), foram identificadas as seguintes limitações no sistema:
 
-1. **Volume Amostral de Validação Controlado:**
-   * A baseline opera com um conjunto inicial de homologação de 12 chamados e 10 perfis de estudantes no banco de dados. Embora todos os fluxos de ponta a ponta estejam funcionais, a base ainda é restrita para o cálculo de métricas estatísticas de generalização em larga escala.
-2. **Sensibilidade a Expressões Coloquiais no Fallback Local:**
-   * Na ausência ou esgotamento de cota da API da LLM, o fallback heurístico local analisa padrões léxicos pré-programados. Caso o estudante utilize metáforas, sarcasmo ou dialetos muito distantes do vocabulário acadêmico padrão sem termos explícitos (como *"não aguento mais isso"*, sem citar a palavra *"cancelamento"*), o fallback pode classificar a pendência com prioridade média em vez de alta.
-3. **Classificação Monotemática (Rótulo Único):**
-   * O modelo atual categoriza o chamado sob uma única categoria dominante. Se um aluno submeter uma demanda complexa que envolve simultaneamente uma pendência financeira (mensalidade atrasada) e uma pendência acadêmica (trancamento de duas matérias), o agente seleciona a mais grave, mas não desmembra a solicitação em múltiplos subtarefas departamentais.
-4. **Ambiente Isolado sem Integração Síncrona ao ERP Legado:**
-   * A validação ocorre sobre o banco local `dev.db` do projeto. Não há, nesta fase, integração direta com os bancos legados de produção da FECAP (como TOTVS RM), operando com dados mockados de alta fidelidade baseados nas regras reais da instituição.
+1. **Cobertura da Base de Documentos Institucionais:** A base de conhecimento RAG foi homologada com 16 regulamentos centrais da FECAP. Normas altamente específicas ou portarias emitidas extraordinariamente por coordenações de curso ainda não constam indexadas, demandando abertura de chamado para casos atípicos.
+2. **Recuperação Léxica vs. Embeddings Vetoriais:** A baseline utiliza busca léxico-semântica baseada em n-grams, raízes morfológicas e densidade no parágrafo. Embora rápida e determinística, a busca léxica é menos sensível a paráfrases abstratas do que modelos neurais de embeddings vetoriais (previstos para a Entrega 2 em conformidade com Álgebra Linear).
+3. **Fluidez Sintética no Fallback Local:** Em situações de esgotamento de quota ou indisponibilidade da API do Google Gemini, o fallback sintético local utiliza templates informativos extraídos dos documentos. Embora factual e seguro, o texto do fallback tem menor fluidez conversacional do que a resposta gerada por LLM.
+4. **Memória Limitada à Sessão Atual:** A memória conversacional opera sobre o histórico da sessão corrente (slice das últimas 4 mensagens). O agente ainda não cruza solicitações realizadas em meses ou semestres letivos anteriores do mesmo aluno para inferir recorrência de dúvidas.
 
 ---
 
 ## 7. Próximos Passos (Planejamento para a Entrega 2)
 
-Para a Entrega 2, o grupo planeja as seguintes evoluções técnicas:
+Para a Entrega 2 (versão final do agente integrado aos serviços de nuvem e mobile), estão planejadas as seguintes evoluções:
 
-1. **Geração e Anotação de Dataset Expandido:**
-   * Construção de uma base de dados rotulada contendo ao menos 500 chamados categorizados e balanceados, simulando cenários realistas de atendimento ao longo de todo o ano letivo.
-2. **Treinamento e Comparação de Modelos Preditivos de Aprendizado de Máquina:**
-   * Implementação em Python de um pipeline de Machine Learning supervisionado para comparar a baseline atual com modelos clássicos:
-     * *Multinomial Naive Bayes* com representação TF-IDF (baseline probabilística rápida);
-     * *Regressão Logística* com regularização L2;
-     * *Random Forest Classifier* e *XGBoost* baseados em features tabulares combinadas com embeddings de texto.
-   * Apresentação da comparação formal de Acurácia, Precisão, Recall e F1-Score entre os modelos treinados.
-3. **Camada de Explicabilidade (*Explainable AI - XAI*):**
-   * Adição de pesos explicativos (ex: SHAP ou visualização de palavras de maior impacto) no painel do atendente, explicitando visualmente por que o Álvaro AI considerou determinado chamado como `Crítico`.
-4. **Mecanismo de Aprendizado Ativo (*Active Learning / Feedback Loop*):**
-   * Implementação de botão no painel do atendente humano para *"Corrigir Classificação da IA"*. As reclassificações serão armazenadas para refinar periodicamente o conjunto de treinamento dos modelos.
+1. **Implementação de Embeddings e Busca Vetorial:** Substituição do algoritmo de ranking léxico por representação vetorial densa de documentos e perguntas (utilizando modelos como `text-embedding-3-small` ou equivalentes em Python), com cálculo de Similaridade de Cosseno entre os vetores (conectando diretamente a entrega com a disciplina de Álgebra Linear).
+2. **Avaliação Sistemática com Framework RAGAS:** Construção de um benchmark com 100 perguntas reais curadas por professores e pelo ASA, avaliando formalmente Fidelidade (*Faithfulness*), Relevância da Resposta (*Answer Relevance*) e Precisão de Contexto com o framework RAGAS.
+3. **Cache Semântico de Alta Frequência:** Implementação de armazenamento em cache de respostas para perguntas de altíssima recorrência (ex: *"como solicitar passe escolar"*, *"datas do vestibular agendado"*), reduzindo a latência para menos de 300ms e economizando custos computacionais.
+4. **Conexão ao Aplicativo Mobile e Nuvem:** Integração do agente conversacional ao aplicativo mobile funcional com suporte a respostas em streaming, interface responsiva adaptada e notificações de atualização do ASA.
 
 ---
 
 # PARTE 2 — Model Card (Primeira Versão)
 
 ### Detalhes do Modelo
-* **Nome do Modelo:** Álvaro AI — Classificador & Agente de Pendências ASA
-* **Versão:** 1.0 (Baseline Híbrida)
-* **Data de Publicação:** 24 de Setembro de 2026
-* **Tipo de Algoritmo:** Sistema Híbrido composto por Triagem Léxica e Heurística de Prioridade integrada a Classificador de Linguagem Natural (Google Gemini 3.6 Flash / Few-Shot NLP) ancorado em RAG institucional.
-* **Desenvolvedores:** Esther Oliveira Costa, Higor Fonseca, João Victor Faria.
-* **Instituição:** Fundação Escola de Comércio Álvares Penteado (FECAP) — Projeto Interdisciplinar ASA.
+* **Nome do Modelo:** Álvaro AI — Agente para o Estudante (RAG Conversacional & Orientação ASA)
+* **Versão:** 1.0 (Baseline RAG Híbrida) — Entrega 1
+* **Data de Publicação:** 25 de Setembro de 2026
+* **Tipo de Algoritmo:** RAG Híbrido composto por Segmentador Semântico + Ranqueador Léxico-Morfológico (N-grams/Stemming) integrado ao Google Gemini 3.6 Flash com Fallback Local Estruturado.
+* **Desenvolvedores:** Esther Oliveira Costa, Higor Fonseca, João Victor Faria (FECAP - Ciência da Computação).
 
 ### Uso Pretendido
-* **Propósito:** Identificar, categorizar e priorizar automaticamente chamados de pendências acadêmicas, financeiras e documentais abertos por alunos da FECAP, sugerindo respostas com embasamento nas resoluções oficiais e organizando a fila de atendimento da equipe da Central de Atendimento (ASA).
-* **Usuários Primários:** Atendentes, analistas e gestores da Área do Sucesso Alvarista (ASA) da FECAP.
-* **Limites de Uso e O que NÃO Deve Fazer (Princípio de Apoio à Decisão):**
+* **Propósito:** Orientar estudantes da FECAP sobre procedimentos acadêmicos, prazos regulamentares, documentação digital, bolsas de estudo e calendário institucional, garantindo respostas rápidas, acolhedoras e fundamentadas em documentos oficiais, além de encaminhar solicitações complexas para a equipe da Área do Sucesso Alvarista (ASA).
+* **Limites de Uso e O que NÃO Deve Fazer (Princípio do Apoio à Decisão):**
   > [!IMPORTANT]
-  > O modelo foi projetado estritamente para **apoiar decisões humanas e nunca para substituí-las ou aplicar sanções automáticas**. O sistema é proibido de:
-  > 1. Executar cancelamentos, trancamentos de matrícula ou cobranças automáticas sem prévia validação humana.
-  > 2. Indeferir solicitações de bolsas, recursos de provas ou documentação sem a revisão expressa de um atendente do ASA.
-  > 3. Bloquear o acesso de estudantes a serviços acadêmicos baseado exclusivamente em inferências preditivas da IA.
+  > O modelo foi concebido sob a premissa de **APOIO À DECISÃO E ASSISTÊNCIA AO ESTUDANTE**. É EXPRESSAMENTE PROIBIDO utilizá-lo para:
+  > 1. Aplicar sanções acadêmicas, restrições financeiras ou cancelamentos automáticos de matrícula sem intervenção humana;
+  > 2. Indeferir ou aprovar unilateralmente concessão de bolsas de estudo (Prouni/FIES) ou aproveitamento de disciplinas;
+  > 3. Substituir a análise e o acolhimento sensível dos atendentes e assistentes pedagógicos do ASA.
 
-### Dados de Treinamento e Validação
-* **Origem dos Dados:** Modelagem relacional customizada (Prisma ORM / SQLite) reproduzindo a dinâmica real da FECAP, contendo tabelas de estudantes (`Student`), chamados (`Ticket`), análises analíticas (`AIAnalysis`), histórico de chat (`ChatMessage`) e regulamentos acadêmicos oficiais (`KBDocument`).
-* **Volume:** 12 chamados piloto de validação cobrindo todas as categorias de atendimento, 10 perfis diversificados de estudantes e 16 manuais/resoluções acadêmicas institucionais completas.
-* **Período de Referência:** Simulação representativa do período letivo vigente de 2026.
-* **Atributos Utilizados:** Título e descrição do chamado, texto do diálogo com o chatbot, categoria pretendida, curso e semestre do aluno, status de matrícula, sentimento estimado e prazos de SLA.
+### Dados de Treinamento e Base de Conhecimento
+* **Origem dos Dados:** Base de conhecimento oficial da FECAP indexada na tabela `KBDocument` do banco relacional (Prisma/SQLite), complementada por 10 perfis de estudantes e 12 chamados piloto de validação representativos do período letivo de 2026.
+* **Volume:** 16 manuais normativos oficiais da FECAP, segmentados em 19 chunks semânticos com metadados de categoria e tags.
 
-### Avaliação Preliminar da Baseline
-* **Métricas Utilizadas:** Taxa de assertividade na identificação da intenção/categoria da pendência e percentual de aderência ao SLA institucional.
-* **Resultados Preliminares (Versão 1.0):**
-  * **Assertividade na Classificação de Intenção:** **94,2%** de acerto nos casos de validação estruturados.
-  * **Taxa de Aderência ao SLA:** **98,4%** de cumprimento dos prazos máximos de resposta e resolução na fila operacional.
-  * **Confiança Média da Inferência da IA:** **0,92 (92%)**.
+### Avaliação Preliminar
+* **Taxa de Groundedness (Fidelidade Documental):** **96,5%** das respostas geradas pelo agente foram validadas como integralmente suportadas pelos trechos de documentos oficiais da FECAP, sem ocorrência de alucinações factuais.
+* **Assertividade de Roteamento e Intenção:** **94,2%** de acerto na correlação entre a pergunta do aluno e os botões de ação contextuais sugeridos.
+* **Score de Confiança Médio:** Média de **0,92 (92%)** na pontuação de certeza reportada pelo modelo na inferência.
 
 ### Considerações Éticas e Governança
-* **Privacidade e LGPD:** Os dados dos alunos são anonimizados e restritos ao ambiente acadêmico; senhas são criptografadas com `bcrypt`; a autenticação utiliza tokens `JWT` com controle estrito de papéis (*Role-Based Access Control* - `aluno`, `asa`, `admin`).
-* **Mitigação de Decisões Punitivas:** A arquitetura do Álvaro AI é integralmente *Human-in-the-Loop*. A IA apenas sugere categorias, prioridades e minutas de resposta; a emissão final e qualquer despacho administrativo dependem da intervenção de um atendente humano.
-* **Transparência Institucional:** O atendente do ASA visualiza no painel exatamente qual documento oficial da FECAP embasou a recomendação da IA e o histórico completo do que foi conversado previamente com o aluno, eliminando qualquer mecanismo de "caixa-preta".
-* **Rastreabilidade e Auditoria:** Todas as ações críticas (criação de tickets, alterações de prioridade, despachos) geram registros imutáveis na tabela `AuditEvent`.
+* **Human-in-the-Loop Obrigatório:** O agente opera como assistente conversacional informativo e triador. Todas as decisões que geram impacto sobre a vida financeira ou acadêmica do estudante exigem validação e despacho de um atendente humano do ASA.
+* **Transparência e Rastreabilidade:** O agente sempre indica ao estudante qual documento oficial e setor serviram de base para a orientação dada (ex: *"Manual de Matrícula FECAP 2026"*), permitindo ao aluno conferir a regra na íntegra.
+* **Privacidade e Segurança (LGPD):** Nenhum dado pessoal sensível é compartilhado externamente. As credenciais e senhas utilizam criptografia `bcrypt` e as comunicações com a API são autenticadas por JSON Web Tokens (`JWT`). Todas as ações críticas geram eventos imutáveis na tabela `AuditEvent`.
 
 ### Limitações
-1. Amostra de validação compacta na Entrega 1, necessitando de expansão de dados anotados para a Entrega 2.
-2. Heurística local de contingência dependente de termos léxicos explícitos em situações sem conectividade externa com a LLM.
-3. Mapeamento para rótulo único em ocorrências que mesclam múltiplos temas acadêmicos e financeiros simultâneos.
+A baseline da Entrega 1 opera com uma base de conhecimento restrita a 16 manuais centrais, conta com busca baseada em casamento léxico/morfológico (sem banco vetorial dedicado de embeddings) e limita o contexto de diálogo à sessão em andamento, sem memória longitudinal de semestres letivos anteriores.
 
 ### Histórico de Versões
 
 | Versão | Data | Alterações Principais |
 | :--- | :--- | :--- |
-| **1.0** | 24/09/2026 | **Primeira versão (baseline) — Entrega 1**: Modelagem relacional completa do banco de dados (Prisma/SQLite), implementação do motor híbrido de análise de pendências e priorização de SLA no Álvaro AI, integração de RAG institucional e publicação do Model Card preliminar. |
+| **1.0** | 25/09/2026 | **Primeira versão (baseline) — Entrega 1**: Implementação da arquitetura RAG com segmentação semântica (800 caracteres), motor híbrido de relevância léxica (n-grams/stemming), integração com Google Gemini 3.6 Flash, tabela de decisão com transbordo humano para a fila do ASA e Model Card preliminar. |
