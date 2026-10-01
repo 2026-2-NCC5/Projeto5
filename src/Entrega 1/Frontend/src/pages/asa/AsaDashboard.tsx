@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Ticket, AlertCircle, Clock, CheckCircle, ArrowUpRight, MessageSquare } from 'lucide-react';
+import { Ticket, AlertCircle, Clock, CheckCircle, ArrowUpRight, MessageSquare, Calendar } from 'lucide-react';
 import { mockTickets } from '@/lib/mock-data';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '@/store/app-store';
@@ -142,6 +142,27 @@ export default function AsaDashboard() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Presencial Schedule Card */}
+          <div className="bg-brand-50/60 dark:bg-brand-950/20 p-5 rounded-xl border border-brand-200 dark:border-brand-900/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300 font-bold text-sm">
+                <Calendar className="w-4 h-4" />
+                <span>Atendimentos Presenciais</span>
+              </div>
+              <span className="text-2xs bg-brand-600 text-white font-bold px-2 py-0.5 rounded-full">Campus</span>
+            </div>
+            <p className="text-xs text-gray-600 dark:text-slate-400">
+              Escala de guichês no Campus Liberdade e sincronização externa com Google Agenda.
+            </p>
+            <Link
+              to="/asa/agendamentos"
+              className="inline-flex items-center justify-center gap-1.5 w-full py-2 px-3 text-xs font-semibold rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-colors"
+            >
+              Abrir Calendário ASA
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
           {/* My Tickets */}

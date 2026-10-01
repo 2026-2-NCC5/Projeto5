@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, MessageSquare, Users, Bot, BookOpen,
   Clock, BarChart2, FileBarChart, Bell, Shield, ChevronLeft, ChevronRight,
-  Sun, Moon, LogOut, Search, Menu, X
+  Sun, Moon, LogOut, Search, Menu, X, Calendar
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAppStore } from '../../store/app-store'
@@ -26,6 +26,7 @@ const navSections: NavSection[] = [
   {
     label: 'Atendimento',
     items: [
+      { icon: Calendar, label: 'Agendamentos', to: '/asa/agendamentos' },
       { icon: Clock, label: 'Fila', to: '/asa/chamados' },
       { icon: MessageSquare, label: 'Conversas', to: '/asa/conversas' },
     ],

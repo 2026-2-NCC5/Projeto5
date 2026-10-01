@@ -8,6 +8,7 @@ import { chatRouter } from './routes/chat.routes'
 import { kbRouter } from './routes/kb.routes'
 import { metricsRouter } from './routes/metrics.routes'
 import { adminRouter } from './routes/admin.routes'
+import { appointmentRouter } from './routes/appointment.routes'
 
 dotenv.config()
 
@@ -41,6 +42,7 @@ app.use('/api/knowledge-base', kbRouter)
 app.use('/api/kb', kbRouter)
 app.use('/api/metrics', metricsRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/appointments', appointmentRouter)
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

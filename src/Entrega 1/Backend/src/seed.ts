@@ -12,6 +12,7 @@ import {
   mockPrompts,
   mockIntegrations,
   mockNotifications,
+  mockAppointments,
 } from './mock-data'
 
 export async function seedDatabase() {
@@ -396,6 +397,55 @@ export async function seedDatabase() {
         },
       })
     }
+  }
+
+  // 13. Appointments (Agendamentos Presenciais ASA)
+  console.log('Criando agendamentos presenciais do ASA...')
+  for (const apt of mockAppointments) {
+    await prisma.appointment.upsert({
+      where: { id: apt.id },
+      update: {
+        protocol: apt.protocol,
+        studentId: apt.studentId,
+        studentName: apt.studentName,
+        studentRa: apt.studentRa,
+        studentEmail: apt.studentEmail,
+        studentCourse: apt.studentCourse,
+        subject: apt.subject,
+        date: apt.date,
+        time: apt.time,
+        durationMinutes: apt.durationMinutes || 30,
+        location: apt.location,
+        desk: apt.desk,
+        notes: apt.notes,
+        status: apt.status,
+        attendantId: apt.attendantId || null,
+        attendantName: apt.attendantName || null,
+        resolutionNotes: (apt as any).resolutionNotes || null,
+        googleCalendarLink: apt.googleCalendarLink || null,
+      },
+      create: {
+        id: apt.id,
+        protocol: apt.protocol,
+        studentId: apt.studentId,
+        studentName: apt.studentName,
+        studentRa: apt.studentRa,
+        studentEmail: apt.studentEmail,
+        studentCourse: apt.studentCourse,
+        subject: apt.subject,
+        date: apt.date,
+        time: apt.time,
+        durationMinutes: apt.durationMinutes || 30,
+        location: apt.location,
+        desk: apt.desk,
+        notes: apt.notes,
+        status: apt.status,
+        attendantId: apt.attendantId || null,
+        attendantName: apt.attendantName || null,
+        resolutionNotes: (apt as any).resolutionNotes || null,
+        googleCalendarLink: apt.googleCalendarLink || null,
+      },
+    })
   }
 
   console.log('✅ Banco de Dados populado com sucesso!')

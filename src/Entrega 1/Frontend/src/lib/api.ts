@@ -192,4 +192,49 @@ export const api = {
     markNotificationRead: (id: string) =>
       request<any>(`/admin/notifications/${id}/read`, { method: 'PATCH' }),
   },
+
+  appointments: {
+    list: (params?: { date?: string; status?: string; search?: string; studentId?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.date) query.set('date', params.date)
+      if (params?.status) query.set('status', params.status)
+      if (params?.search) query.set('search', params.search)
+      if (params?.studentId) query.set('studentId', params.studentId)
+      const qs = query.toString()
+      return request<any[]>(`/appointments${qs ? `?${qs}` : ''}`)
+    },
+    my: () => request<any[]>('/appointments/my'),
+    slots: (date?: string) => {
+      const qs = date ? `?date=${encodeURIComponent(date)}` : ''
+      return request<{
+        date: string
+        slots: { time: string; available: boolean; bookedCount: number; alreadyBookedByYou: boolean }[]
+        userAlreadyHasBookingOnDate?: boolean
+        userAppointmentOnDate?: { time: string; protocol: string } | null
+      }>(`/appointments/slots${qs}`)
+    },
+    metrics: () => request<{ total: number; todayCount: number; inProgressCount: number; completedCount: number; cancelledCount: number; attendanceRate: number }>('/appointments/metrics'),
+    get: (id: string) => request<any>(`/appointments/${id}`),
+    create: (data: {
+      subject: string
+      date: string
+      time: string
+      notes?: string
+      studentId?: string
+      studentName?: string
+      studentRa?: string
+      studentEmail?: string
+      studentCourse?: string
+    }) =>
+      request<any>('/appointments', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateStatus: (id: string, status: string, resolutionNotes?: string) =>
+      request<any>(`/appointments/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, resolutionNotes }),
+      }),
+    getIcsUrl: (id: string) => getFullUrl(`/appointments/${id}/ics`),
+  },
 }

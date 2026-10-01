@@ -24,6 +24,7 @@ import AlunoAgendamento from './pages/aluno/AlunoAgendamento'
 // ASA pages
 import AsaDashboard from './pages/asa/AsaDashboard'
 import AsaFila from './pages/asa/AsaFila'
+import AsaAgendamentos from './pages/asa/AsaAgendamentos'
 import AsaDetalheChamado from './pages/asa/AsaDetalheChamado'
 import AsaConversas from './pages/asa/AsaConversas'
 import AsaAlunos from './pages/asa/AsaAlunos'
@@ -99,6 +100,7 @@ function App() {
         <Route element={<ProtectedRoute allowedRoles={['asa', 'admin']} />}>
           <Route path="/asa" element={<AsaLayout />}>
             <Route index element={<AsaDashboard />} />
+            <Route path="agendamentos" element={<AsaAgendamentos />} />
             <Route path="chamados" element={<AsaFila />} />
             <Route path="chamados/:id" element={<AsaDetalheChamado />} />
             <Route path="conversas" element={<AsaConversas />} />

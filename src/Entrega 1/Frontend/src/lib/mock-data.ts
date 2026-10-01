@@ -14,6 +14,32 @@ export type TicketCategory =
   | 'infraestrutura'
   | 'cancelamento'
 
+export type AppointmentStatus = 'agendado' | 'confirmado' | 'em_atendimento' | 'concluido' | 'cancelado' | 'ausente'
+
+export interface Appointment {
+  id: string
+  protocol: string
+  studentId: string
+  studentName: string
+  studentRa: string
+  studentEmail: string
+  studentCourse?: string
+  subject: string
+  date: string
+  time: string
+  durationMinutes?: number
+  location: string
+  desk?: string
+  notes?: string
+  status: AppointmentStatus
+  attendantId?: string | null
+  attendantName?: string | null
+  resolutionNotes?: string | null
+  googleCalendarLink?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
 // -------------------------------------------------------
 // USERS
 // -------------------------------------------------------

@@ -21,6 +21,7 @@ model User {
   updatedAt   DateTime       @updatedAt
 
   assignedTickets Ticket[]   @relation("AssignedTickets")
+  assignedAppointments Appointment[] @relation("AttendantAppointments")
 }
 
 model Student {
@@ -38,6 +39,7 @@ model Student {
 
   tickets       Ticket[]
   conversations Conversation[]
+  appointments  Appointment[]
 }
 
 model Ticket {
@@ -222,4 +224,31 @@ model Notification {
   priority  String   @default("medium") // 'low' | 'medium' | 'high'
   link      String?
   createdAt DateTime @default(now())
+}
+
+model Appointment {
+  id                 String   @id @default(uuid())
+  protocol           String   @unique
+  studentId          String
+  studentName        String
+  studentRa          String
+  studentEmail       String
+  studentCourse      String?
+  subject            String
+  date               String   // Formato YYYY-MM-DD
+  time               String   // Formato HH:mm
+  durationMinutes    Int      @default(30)
+  location           String   @default("Campus Liberdade · Bloco B · Térreo (Central ASA)")
+  desk               String?  @default("Guichê Presencial")
+  notes              String?
+  status             String   @default("confirmado") // 'confirmado' | 'em_atendimento' | 'concluido' | 'cancelado' | 'ausente'
+  attendantId        String?
+  attendantName      String?
+  resolutionNotes    String?
+  googleCalendarLink String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  student            Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attendant          User?    @relation("AttendantAppointments", fields: [attendantId], references: [id])
 }
