@@ -36,6 +36,10 @@ export interface Appointment {
   attendantName?: string | null
   resolutionNotes?: string | null
   googleCalendarLink?: string | null
+  documentName?: string | null
+  documentType?: string | null
+  documentSize?: string | null
+  documentData?: string | null
   createdAt?: string
   updatedAt?: string
 }

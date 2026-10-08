@@ -13,6 +13,10 @@ export interface CreateAppointmentDTO {
   durationMinutes?: number
   notes?: string
   desk?: string
+  documentName?: string
+  documentType?: string
+  documentSize?: string
+  documentData?: string
 }
 
 export interface AppointmentFilterDTO {
@@ -340,6 +344,10 @@ export class AppointmentService {
         notes: data.notes || '',
         status: 'confirmado',
         googleCalendarLink: gCalLink,
+        documentName: data.documentName || null,
+        documentType: data.documentType || null,
+        documentSize: data.documentSize || null,
+        documentData: data.documentData || null,
       },
     })
 
@@ -353,7 +361,7 @@ export class AppointmentService {
           action: 'Agendamento Presencial Criado',
           resource: 'Agendamento ASA',
           resourceId: protocol,
-          details: `Agendamento criado para ${data.date} às ${data.time} no Guichê Presencial ASA. Assunto: ${data.subject}. Base Legal: LGPD Art. 7, V (execução de contrato / atendimento acadêmico).`,
+          details: `Agendamento criado para ${data.date} às ${data.time} no Guichê Presencial ASA. Assunto: ${data.subject}. Documento: ${data.documentName ? `Anexado (${data.documentName})` : 'Nenhum'}. Base Legal: LGPD Art. 7, V (execução de contrato / atendimento acadêmico).`,
           severity: 'info',
         },
       })

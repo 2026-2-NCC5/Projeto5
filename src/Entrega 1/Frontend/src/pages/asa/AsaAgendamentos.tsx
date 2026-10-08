@@ -5,7 +5,7 @@ import {
   AlertCircle, Search, Filter, Download, ExternalLink,
   ChevronLeft, ChevronRight, Plus, MapPin, Building2,
   RefreshCw, ShieldCheck, CheckCircle, XCircle, PlayCircle,
-  Share2, CalendarDays, Eye, Sparkles, Copy, Check
+  Share2, CalendarDays, Eye, Sparkles, Copy, Check, Paperclip
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -798,8 +798,24 @@ export default function AsaAgendamentos() {
                         <div className="font-semibold text-gray-900 dark:text-white">{apt.studentName}</div>
                         <div className="text-[11px] text-gray-400">RA: {apt.studentRa} · {apt.studentCourse}</div>
                       </td>
-                      <td className="py-3 px-4 max-w-xs truncate text-gray-800 dark:text-slate-200">
-                        {apt.subject}
+                      <td className="py-3 px-4 max-w-xs text-gray-800 dark:text-slate-200">
+                        <div className="font-medium truncate">{apt.subject}</div>
+                        {apt.documentName && (
+                          <div className="flex items-center gap-1.5 mt-1 text-2xs text-brand-600 dark:text-brand-400 bg-brand-50/60 dark:bg-brand-950/30 px-2 py-0.5 rounded-md border border-brand-200/50 dark:border-brand-800/40 w-fit">
+                            <Paperclip size={11} className="flex-shrink-0" />
+                            <span className="truncate max-w-[150px] font-semibold">{apt.documentName}</span>
+                            {apt.documentData && (
+                              <a
+                                href={apt.documentData}
+                                download={apt.documentName}
+                                className="font-bold underline hover:text-brand-800 dark:hover:text-brand-200 ml-1"
+                                title="Baixar anexo do aluno"
+                              >
+                                Baixar
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span className="font-medium text-gray-900 dark:text-white">{apt.date}</span>

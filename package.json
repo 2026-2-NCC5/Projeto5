@@ -16,8 +16,7 @@
     "start": "cd \"src/Entrega 1/Backend\" && npx tsx src/index.ts",
     "start:backend": "cd \"src/Entrega 1/Backend\" && npm start",
     "seed": "cd \"src/Entrega 1/Backend\" && npm run seed",
-    "db:push": "cd \"src/Entrega 1/Backend\" && npm run db:push",
-    "render:build": "cd \"src/Entrega 1/Backend\" && npm install && npx prisma db push && npx prisma generate && npx tsx src/seed.ts",
+    "render:build": "cd \"src/Entrega 1/Backend\" && npm install --include=dev && npx prisma db push && npx prisma generate && npx tsx src/seed.ts",
     "render:start": "cd \"src/Entrega 1/Backend\" && npx tsx src/index.ts"
   },
   "devDependencies": {

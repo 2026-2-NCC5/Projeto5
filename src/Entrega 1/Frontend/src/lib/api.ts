@@ -225,6 +225,10 @@ export const api = {
       studentRa?: string
       studentEmail?: string
       studentCourse?: string
+      documentName?: string
+      documentType?: string
+      documentSize?: string
+      documentData?: string
     }) =>
       request<any>('/appointments', {
         method: 'POST',
@@ -235,6 +239,7 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ status, resolutionNotes }),
       }),
+    getDocument: (id: string) => request<{ name: string; type: string; size: string; dataUrl: string }>(`/appointments/${id}/document`),
     getIcsUrl: (id: string) => getFullUrl(`/appointments/${id}/ics`),
   },
 }

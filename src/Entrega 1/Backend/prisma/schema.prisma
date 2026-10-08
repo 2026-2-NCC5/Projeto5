@@ -246,6 +246,10 @@ model Appointment {
   attendantName      String?
   resolutionNotes    String?
   googleCalendarLink String?
+  documentName       String?
+  documentType       String?
+  documentSize       String?
+  documentData       String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

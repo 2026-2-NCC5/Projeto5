@@ -107,7 +107,21 @@ appointmentRouter.get('/:id', authenticateToken, async (req: AuthenticatedReques
  */
 appointmentRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { subject, date, time, notes, studentId, studentName, studentRa, studentEmail, studentCourse } = req.body
+    const {
+      subject,
+      date,
+      time,
+      notes,
+      studentId,
+      studentName,
+      studentRa,
+      studentEmail,
+      studentCourse,
+      documentName,
+      documentType,
+      documentSize,
+      documentData,
+    } = req.body
 
     if (!subject || !date || !time) {
       return res.status(400).json({ error: 'Assunto, data e horário são campos obrigatórios para o agendamento presencial.' })
@@ -126,12 +140,45 @@ appointmentRouter.post('/', authenticateToken, async (req: AuthenticatedRequest,
       date,
       time,
       notes,
+      documentName,
+      documentType,
+      documentSize,
+      documentData,
     }, req.user)
 
     res.status(201).json(appointment)
   } catch (error: any) {
     console.error('Erro ao criar agendamento presencial:', error)
     res.status(500).json({ error: error.message || 'Erro ao confirmar agendamento presencial.' })
+  }
+})
+
+/**
+ * GET /api/appointments/:id/document
+ * Retorna o documento anexo do agendamento presencial
+ */
+appointmentRouter.get('/:id/document', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const appointment = await appointmentService.getById(id)
+
+    if (!appointment || !appointment.documentData) {
+      return res.status(404).json({ error: 'Nenhum documento anexo encontrado para este agendamento.' })
+    }
+
+    if (req.user?.role === 'aluno' && appointment.studentId !== req.user.id) {
+      return res.status(403).json({ error: 'Acesso não autorizado ao documento deste agendamento (LGPD).' })
+    }
+
+    res.json({
+      name: appointment.documentName || 'documento-agendamento',
+      type: appointment.documentType || 'application/octet-stream',
+      size: appointment.documentSize || '0 KB',
+      dataUrl: appointment.documentData,
+    })
+  } catch (error: any) {
+    console.error('Erro ao buscar documento do agendamento:', error)
+    res.status(500).json({ error: error.message || 'Erro ao carregar documento.' })
   }
 })
 
