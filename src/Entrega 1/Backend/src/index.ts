@@ -21,7 +21,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-role', 'x-user-id', 'x-demo-role', 'x-demo-user-id']
 }))
-app.use(express.json())
+app.use(express.json({ limit: '25mb' }))
+app.use(express.urlencoded({ limit: '25mb', extended: true }))
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {

@@ -5,7 +5,7 @@ import {
   AlertCircle, Search, Filter, Download, ExternalLink,
   ChevronLeft, ChevronRight, Plus, MapPin, Building2,
   RefreshCw, ShieldCheck, CheckCircle, XCircle, PlayCircle,
-  Share2, CalendarDays, Eye, Sparkles, Copy, Check, Paperclip
+  Share2, CalendarDays, Eye, Sparkles, Copy, Check, Paperclip, FileText
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -58,6 +58,30 @@ export default function AsaAgendamentos() {
 
   // External Calendar / Google Agenda Modal
   const [googleModalOpen, setGoogleModalOpen] = useState(false)
+
+  // Modal de Visualização de Documento Anexado
+  const [documentModalOpen, setDocumentModalOpen] = useState(false)
+  const [previewDocument, setPreviewDocument] = useState<{
+    name: string
+    type?: string
+    size?: string
+    dataUrl?: string
+    protocol?: string
+    studentName?: string
+  } | null>(null)
+
+  const handleOpenDocument = (apt: Appointment) => {
+    if (!apt.documentName && !apt.documentData) return
+    setPreviewDocument({
+      name: apt.documentName || 'documento-agendamento',
+      type: apt.documentType,
+      size: apt.documentSize,
+      dataUrl: apt.documentData,
+      protocol: apt.protocol,
+      studentName: apt.studentName,
+    })
+    setDocumentModalOpen(true)
+  }
   const [copiedFeed, setCopiedFeed] = useState(false)
 
   // New Appointment Modal for Attendant
@@ -612,6 +636,37 @@ export default function AsaAgendamentos() {
                     <div className="text-2xs text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-800 p-2 rounded-lg border border-gray-100 dark:border-slate-700">
                       <strong>Assunto:</strong> {apt.subject}
                     </div>
+                    {apt.documentName && (
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-brand-50/70 dark:bg-brand-950/30 border border-brand-200/60 dark:border-brand-800/40 text-2xs">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Paperclip size={12} className="text-brand-600 dark:text-brand-400 flex-shrink-0" />
+                          <span className="truncate font-medium text-gray-800 dark:text-slate-200" title={apt.documentName}>
+                            {apt.documentName}
+                          </span>
+                          {apt.documentSize && (
+                            <span className="text-[10px] text-gray-400 flex-shrink-0">({apt.documentSize})</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocument(apt)}
+                            className="px-2 py-0.5 rounded bg-brand-600 hover:bg-brand-700 text-white font-semibold text-[10px] transition-colors"
+                          >
+                            Ver
+                          </button>
+                          {apt.documentData && (
+                            <a
+                              href={apt.documentData}
+                              download={apt.documentName}
+                              className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 font-semibold text-[10px] hover:bg-gray-50 transition-colors"
+                            >
+                              Baixar
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Attendant Actions */}
                     <div className="flex items-center justify-between pt-1 gap-2 border-t border-gray-100 dark:border-slate-700">
@@ -976,7 +1031,41 @@ export default function AsaAgendamentos() {
             <p><strong>Data & Horário:</strong> {selectedAppointment?.date} às {selectedAppointment?.time}</p>
           </div>
 
-          <div className="space-y-2">
+          
+          {selectedAppointment?.documentName && (
+            <div className="p-3 rounded-xl bg-brand-50/70 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-900/60 flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <Paperclip size={16} className="text-brand-600 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 dark:text-white truncate">
+                    {selectedAppointment.documentName}
+                  </p>
+                  <p className="text-[10px] text-gray-500">
+                    Documento anexado pelo estudante {selectedAppointment.documentSize ? `(${selectedAppointment.documentSize})` : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleOpenDocument(selectedAppointment)}
+                  className="px-2.5 py-1 text-2xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700"
+                >
+                  Visualizar
+                </button>
+                {selectedAppointment.documentData && (
+                  <a
+                    href={selectedAppointment.documentData}
+                    download={selectedAppointment.documentName}
+                    className="px-2.5 py-1 text-2xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50"
+                  >
+                    Baixar
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+<div className="space-y-2">
             <label className="font-semibold text-gray-900 dark:text-white">
               Parecer / Observações do Atendimento Concluído (LGPD):
             </label>
@@ -1124,6 +1213,86 @@ export default function AsaAgendamentos() {
           </div>
         </form>
       </Modal>
+    
+      {/* MODAL 4: Document Preview for Attendant */}
+      <Modal
+        open={documentModalOpen}
+        onClose={() => setDocumentModalOpen(false)}
+        title="Documento Anexado pelo Estudante"
+        description={`Protocolo: #${previewDocument?.protocol || 'Presencial'} · Aluno(a): ${previewDocument?.studentName || 'Estudante'}`}
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-2xs text-gray-500">
+              {previewDocument?.name} ({previewDocument?.size || 'Anexo'})
+            </span>
+            <div className="flex items-center gap-2">
+              {previewDocument?.dataUrl && (
+                <a
+                  href={previewDocument.dataUrl}
+                  download={previewDocument.name}
+                  className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Download size={14} />
+                  Baixar Arquivo
+                </a>
+              )}
+              {previewDocument?.dataUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const win = window.open('')
+                    if (win) {
+                      win.document.write(`<iframe src="${previewDocument.dataUrl}" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`)
+                      win.document.title = previewDocument.name
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 text-xs font-semibold hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-1.5"
+                >
+                  <ExternalLink size={14} />
+                  Abrir em Nova Aba
+                </button>
+              )}
+              <Button variant="ghost" size="sm" onClick={() => setDocumentModalOpen(false)}>
+                Fechar
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {previewDocument?.dataUrl ? (
+            previewDocument.type?.startsWith('image/') || previewDocument.name?.match(/\.(png|jpe?g|gif|webp)$/i) ? (
+              <div className="max-h-[60vh] overflow-auto flex items-center justify-center p-2 bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700">
+                <img
+                  src={previewDocument.dataUrl}
+                  alt={previewDocument.name}
+                  className="max-h-[55vh] object-contain rounded-lg shadow-sm"
+                />
+              </div>
+            ) : (
+              <div className="h-[60vh] w-full rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-900">
+                <iframe
+                  src={previewDocument.dataUrl}
+                  title={previewDocument.name}
+                  className="w-full h-full border-0"
+                />
+              </div>
+            )
+          ) : (
+            <div className="text-center py-12 space-y-3 bg-gray-50 dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700">
+              <FileText size={40} className="mx-auto text-gray-400" />
+              <p className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                {previewDocument?.name || 'Documento Anexo'}
+              </p>
+              <p className="text-xs text-gray-500">
+                O arquivo está registrado no prontuário do atendimento.
+              </p>
+            </div>
+          )}
+        </div>
+      </Modal>
+
     </div>
   )
 }

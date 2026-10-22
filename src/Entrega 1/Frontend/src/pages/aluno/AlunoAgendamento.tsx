@@ -156,10 +156,10 @@ export default function AlunoAgendamento() {
     if (!file) return
 
     // Limit to 10MB
-    const MAX_SIZE = 10 * 1024 * 1024
+    const MAX_SIZE = 8 * 1024 * 1024
     if (file.size > MAX_SIZE) {
-      setUploadError('O arquivo selecionado excede o limite máximo permitido de 10 MB.')
-      show('Arquivo muito grande. O limite máximo é de 10 MB.', 'warning')
+      setUploadError('O arquivo selecionado excede o limite máximo permitido de 8 MB.')
+      show('Arquivo muito grande. O limite máximo é de 8 MB.', 'warning')
       return
     }
 
@@ -240,36 +240,9 @@ export default function AlunoAgendamento() {
       handleRemoveFile()
       await Promise.all([fetchMyAppointments(), fetchSlots(selectedDate)])
     } catch (err: any) {
-      console.warn('API de agendamentos indisponível ou em sincronização, ativando agendamento local de contingência:', err)
-      // Contingência offline/produção: gera agendamento para não bloquear a experiência do aluno
-      const fallbackApp: Appointment = {
-        id: 'local-' + Date.now(),
-        protocol: `AG-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        studentId: currentUser?.id || 'demo-aluno',
-        studentName: currentUser?.name || 'Estudante FECAP',
-        studentRa: currentUser?.ra || '24001523',
-        studentEmail: currentUser?.email || 'aluno@fecap.br',
-        studentCourse: currentUser?.course || 'Administração',
-        subject: selectedSubject,
-        date: selectedDate,
-        time: selectedTime,
-        location: 'Campus Liberdade · Bloco B · Térreo (Central ASA)',
-        desk: 'Guichê Presencial ASA',
-        notes: notes.trim(),
-        documentName: attachedFile?.name || null,
-        documentType: attachedFile?.type || null,
-        documentSize: attachedFile?.size || null,
-        documentData: attachedFile?.dataUrl || null,
-        status: 'confirmado',
-        createdAt: new Date().toISOString(),
-      }
-      setCreatedAppointment(fallbackApp)
-      setMyAppointments(prev => [fallbackApp, ...prev])
-      setConfirmedModal(true)
-      setSelectedTime('')
-      setNotes('')
-      handleRemoveFile()
-      show('Agendamento presencial confirmado com sucesso!', 'success')
+      console.error('Erro ao registrar agendamento presencial:', err)
+      const msg = err.message || 'Erro ao comunicar com o servidor de agendamentos.'
+      show(`Não foi possível confirmar o agendamento: ${msg}`, 'error')
     } finally {
       setLoadingSubmit(false)
     }
