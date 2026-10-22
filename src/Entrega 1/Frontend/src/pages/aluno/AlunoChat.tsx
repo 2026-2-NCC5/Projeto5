@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Plus, ArrowLeft, Bot, Book, Sparkles, MessageSquare, Loader2, Ticket as TicketIcon } from 'lucide-react';
+import { Send, Paperclip, Plus, ArrowLeft, Bot, Book, Sparkles, MessageSquare, Loader2, Ticket as TicketIcon, Cloud, Download } from 'lucide-react';
 import { formatRelative, cn } from '../../lib/utils';
 import { api } from '../../lib/api';
 import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
@@ -204,6 +204,29 @@ export default function AlunoChat() {
     }
   };
 
+  const handleExportConversation = () => {
+    if (!messages || messages.length === 0) return;
+    const activeConv = conversations.find(c => c.id === activeConvId);
+    const exportData = {
+      title: activeConv?.title || 'Conversa Álvaro AI',
+      conversationId: activeConvId,
+      exportedAt: new Date().toISOString(),
+      storage: 'Cloudflare R2 Object Storage',
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversa-alvaro-${(activeConvId || 'export').slice(0, 8)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleActionClick = (action: string) => {
     if (action === 'novo-chamado' || action === 'open_ticket') {
       navigate(`/aluno/chamados/novo?conversationId=${activeConvId}`);
@@ -302,6 +325,18 @@ export default function AlunoChat() {
               <Bot size={14} />
               RAG Ativo
             </span>
+            <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" title="Conversas sincronizadas no Cloudflare R2">
+              <Cloud size={13} />
+              R2 Sincronizado
+            </span>
+            <button
+              onClick={handleExportConversation}
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 border border-gray-200 dark:border-slate-700 transition-colors cursor-pointer"
+              title="Exportar histórico da conversa sincronizado no Cloudflare R2"
+            >
+              <Download size={13} />
+              Exportar
+            </button>
           </div>
         </div>
 

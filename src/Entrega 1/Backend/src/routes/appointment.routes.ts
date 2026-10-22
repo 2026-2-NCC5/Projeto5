@@ -1,6 +1,7 @@
 import { Router, Response } from 'express'
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth'
 import { appointmentService } from '../services/appointment.service'
+import { r2Service } from '../services/r2.service'
 
 export const appointmentRouter = Router()
 
@@ -145,6 +146,17 @@ appointmentRouter.post('/', authenticateToken, async (req: AuthenticatedRequest,
       documentSize,
       documentData,
     }, req.user)
+
+    // Sincronização de arquivo no Cloudflare R2
+    if (documentData && r2Service.isConfigured()) {
+      const sanitizedName = (documentName || 'anexo').replace(/[^a-zA-Z0-9._-]/g, '_')
+      const r2Key = `agendamentos/${appointment.id}/${sanitizedName}`
+      r2Service.uploadBase64(r2Key, documentData).then(() => {
+        console.log(`☁️ Documento do agendamento sincronizado no R2: ${r2Key}`)
+      }).catch(err => {
+        console.warn('Sincronização R2 do anexo em segundo plano:', err.message)
+      })
+    }
 
     res.status(201).json(appointment)
   } catch (error: any) {

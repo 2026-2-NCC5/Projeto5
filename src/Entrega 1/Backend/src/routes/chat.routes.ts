@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../db'
 import { AuthenticatedRequest, authenticateToken } from '../middleware/auth'
 import { aiService } from '../services/ai.service'
+import { r2Service } from '../services/r2.service'
 
 export const chatRouter = Router()
 
@@ -217,6 +218,34 @@ chatRouter.post('/conversations/:id/messages', authenticateToken, async (req: Au
       })
     }
 
+    // 7. Persistência e Snapshot no Cloudflare R2 (assíncrono para alta performance)
+    if (r2Service.isConfigured()) {
+      prisma.chatMessage.findMany({
+        where: { conversationId: id },
+        orderBy: { timestamp: 'asc' },
+      }).then(allMessages => {
+        return r2Service.saveConversationSnapshot(id, conversation.studentId, {
+          title: conversation.title,
+          student: student ? {
+            id: student.id,
+            name: student.name,
+            ra: student.ra,
+            course: student.course,
+            email: student.email,
+          } : null,
+          messages: allMessages.map(m => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            actions: m.actions ? JSON.parse(m.actions) : undefined,
+            timestamp: m.timestamp,
+          })),
+        })
+      }).catch(err => {
+        console.warn('Sincronização R2 em segundo plano:', err.message)
+      })
+    }
+
     res.status(201).json({
       userMessage: {
         ...userMessage,
@@ -230,5 +259,38 @@ chatRouter.post('/conversations/:id/messages', authenticateToken, async (req: Au
   } catch (error) {
     console.error('Erro ao enviar mensagem no chat:', error)
     res.status(500).json({ error: 'Erro ao processar mensagem do chat' })
+  }
+})
+
+
+/**
+ * GET /api/chat/conversations/:id/r2-snapshot
+ * Consulta ou restaura o snapshot oficial da conversa gravado no Cloudflare R2
+ */
+chatRouter.get('/conversations/:id/r2-snapshot', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = String(req.params.id)
+    const conversation = await prisma.conversation.findUnique({ where: { id } })
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversa não encontrada' })
+    }
+
+    const studentId = conversation.studentId
+    const snapshot = await r2Service.getConversationSnapshot(id, studentId)
+
+    if (!snapshot) {
+      return res.status(404).json({
+        error: 'Snapshot R2 ainda não disponível ou Cloudflare R2 aguardando credenciais.',
+        configured: r2Service.isConfigured(),
+      })
+    }
+
+    res.json({
+      source: 'cloudflare-r2',
+      snapshot,
+    })
+  } catch (error: any) {
+    console.error('Erro ao buscar snapshot R2:', error)
+    res.status(500).json({ error: error.message || 'Erro ao consultar Cloudflare R2' })
   }
 })
