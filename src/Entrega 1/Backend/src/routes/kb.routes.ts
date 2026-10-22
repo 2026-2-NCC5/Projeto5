@@ -4,6 +4,7 @@ import { createRequire } from 'module'
 import { prisma } from '../db'
 import { AuthenticatedRequest, authenticateToken } from '../middleware/auth'
 import { aiService } from '../services/ai.service'
+import { r2Service } from '../services/r2.service'
 
 const require = createRequire(import.meta.url)
 const pdfParseModule = require('pdf-parse')
@@ -148,6 +149,23 @@ kbRouter.post('/upload', authenticateToken, upload.single('file'), async (req: A
         chunkCount: chunks.length,
       },
     })
+
+    // Sincroniza arquivo binário original no Cloudflare R2
+    let r2Key: string | null = null
+    if (r2Service.isConfigured() && req.file) {
+      try {
+        const sanitized = originalName.replace(/[^a-zA-Z0-9._-]/g, '_')
+        r2Key = `kb/${document.id}/${sanitized}`
+        await r2Service.uploadBuffer(r2Key, req.file.buffer, req.file.mimetype || 'application/pdf')
+        await prisma.kBDocument.update({
+          where: { id: document.id },
+          data: { r2Key },
+        })
+        console.log(`☁️ Arquivo da Base de Conhecimento enviado ao Cloudflare R2: ${r2Key}`)
+      } catch (r2Err: any) {
+        console.warn('Falha no upload do arquivo KB para o R2:', r2Err.message)
+      }
+    }
 
     // Registra evento de auditoria
     await prisma.auditEvent.create({
@@ -304,5 +322,32 @@ kbRouter.delete('/:id', authenticateToken, async (req: AuthenticatedRequest, res
   } catch (error) {
     console.error('Erro ao excluir artigo:', error)
     res.status(500).json({ error: 'Erro ao remover artigo' })
+  }
+})
+
+
+/**
+ * GET /api/knowledge-base/:id/download
+ * Baixa o arquivo original da Base de Conhecimento hospedado no Cloudflare R2
+ */
+kbRouter.get('/:id/download', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const id = String(req.params.id)
+    const doc = await prisma.kBDocument.findUnique({ where: { id } })
+    if (!doc) {
+      return res.status(404).json({ error: 'Documento não encontrado' })
+    }
+
+    if (doc.r2Key && r2Service.isConfigured()) {
+      const presignedUrl = await r2Service.getPresignedUrl(doc.r2Key, 3600)
+      if (presignedUrl) {
+        return res.redirect(presignedUrl)
+      }
+    }
+
+    return res.status(404).json({ error: 'Arquivo binário original não localizado no Cloudflare R2.' })
+  } catch (error: any) {
+    console.error('Erro ao baixar documento do R2:', error)
+    res.status(500).json({ error: 'Erro ao gerar download do arquivo' })
   }
 })

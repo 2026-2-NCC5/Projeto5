@@ -145,6 +145,7 @@ model KBDocument {
   filename     String?
   fileSize     Int?
   chunkCount   Int?     @default(1)
+  r2Key        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -250,6 +251,7 @@ model Appointment {
   documentType       String?
   documentSize       String?
   documentData       String?
+  r2Key              String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

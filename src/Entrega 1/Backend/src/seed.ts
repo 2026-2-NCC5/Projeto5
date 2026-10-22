@@ -17,6 +17,17 @@ import {
 
 export async function seedDatabase() {
   console.log('🌱 Iniciando Seed do Banco de Dados...')
+  console.log('🧹 Limpando dados antigos para manter apenas 1 exemplo por tela...')
+  await prisma.attachment.deleteMany().catch(() => {})
+  await prisma.ticketMessage.deleteMany().catch(() => {})
+  await prisma.aIAnalysis.deleteMany().catch(() => {})
+  await prisma.ticket.deleteMany().catch(() => {})
+  await prisma.chatMessage.deleteMany().catch(() => {})
+  await prisma.conversation.deleteMany().catch(() => {})
+  await prisma.appointment.deleteMany().catch(() => {})
+  await prisma.kBDocument.deleteMany().catch(() => {})
+  await prisma.student.deleteMany().catch(() => {})
+  await prisma.user.deleteMany().catch(() => {})
 
   // 1. Users
   console.log('Criando usuários...')
@@ -149,8 +160,8 @@ export async function seedDatabase() {
     })
 
     if (!existingMsg) {
-      const senderRole = msg.sender === 'ia' ? 'sistema' : msg.sender
-      const senderId = msg.sender === 'aluno' ? 'aluno-01' : msg.sender === 'asa' ? 'asa-01' : 'admin-01'
+      const senderRole = (msg as any).senderRole || (msg as any).sender || 'aluno'
+      const senderId = senderRole === 'aluno' ? 'aluno-01' : senderRole === 'asa' ? 'asa-01' : 'admin-01'
 
       const createdMsg = await prisma.ticketMessage.create({
         data: {
