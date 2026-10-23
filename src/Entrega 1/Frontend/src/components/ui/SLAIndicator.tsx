@@ -1,22 +1,27 @@
 import { differenceInMinutes, differenceInHours, parseISO } from 'date-fns'
-import { cn } from '../../lib/utils'
 
 interface SLAIndicatorProps {
-  deadline: string
-  status: 'ok' | 'risk' | 'breached'
+  deadline?: string
+  status?: 'ok' | 'risk' | 'breached'
 }
 
-function formatTimeRemaining(deadline: string): string {
-  const now = new Date()
-  const end = parseISO(deadline)
-  const totalMinutes = differenceInMinutes(end, now)
+function formatTimeRemaining(deadline?: string): string {
+  if (!deadline) return '--'
+  try {
+    const now = new Date()
+    const end = parseISO(deadline)
+    if (isNaN(end.getTime())) return '--'
+    const totalMinutes = differenceInMinutes(end, now)
 
-  if (totalMinutes < 0) return 'Vencido'
-  if (totalMinutes < 60) return `${totalMinutes}min`
+    if (totalMinutes < 0) return 'Vencido'
+    if (totalMinutes < 60) return `${totalMinutes}min`
 
-  const hours = differenceInHours(end, now)
-  const mins = totalMinutes - hours * 60
-  return `${hours}h ${mins}min`
+    const hours = differenceInHours(end, now)
+    const mins = totalMinutes - hours * 60
+    return `${hours}h ${mins}min`
+  } catch {
+    return '--'
+  }
 }
 
 export default function SLAIndicator({ deadline, status }: SLAIndicatorProps) {

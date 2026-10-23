@@ -432,9 +432,9 @@ export default function AlunoDashboard() {
                   </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <span className="text-2xs text-gray-400 block">{formatRelative(conv.timestamp)}</span>
+                  <span className="text-2xs text-gray-400 block">{formatRelative((conv as any).timestamp || conv.updatedAt || conv.createdAt)}</span>
                   <span className="text-3xs px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 font-semibold mt-1 inline-block">
-                    {conv.messages.length} mensagens
+                    {(conv.messages?.length || 0)} mensagens
                   </span>
                 </div>
               </div>

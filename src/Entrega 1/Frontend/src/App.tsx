@@ -62,6 +62,7 @@ import AdminConfiguracoes from './pages/admin/AdminConfiguracoes'
 import AdminSaude from './pages/admin/AdminSaude'
 
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import ErrorBoundary from './components/common/ErrorBoundary'
 
 function App() {
   const { theme } = useAppStore()
@@ -76,77 +77,79 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public Institutional Portal & Auth */}
-        <Route path="/" element={<FecapPortalPage />} />
-        <Route path="/login" element={<LoginPage />} />
+      <ErrorBoundary>
+        <Routes>
+          {/* Public Institutional Portal & Auth */}
+          <Route path="/" element={<FecapPortalPage />} />
+          <Route path="/login" element={<LoginPage />} />
 
-        {/* Aluno - Protegido por JWT e Sessão */}
-        <Route element={<ProtectedRoute allowedRoles={['aluno', 'admin']} />}>
-          <Route path="/aluno" element={<AlunoLayout />}>
-            <Route index element={<AlunoDashboard />} />
-            <Route path="chat" element={<AlunoChat />} />
-            <Route path="chat/:id" element={<AlunoChat />} />
-            <Route path="chamados" element={<AlunoChamados />} />
-            <Route path="chamados/novo" element={<NovoChamado />} />
-            <Route path="chamados/:id" element={<DetalheChamadoAluno />} />
-            <Route path="documentos" element={<AlunoDocumentos />} />
-            <Route path="agendamento" element={<AlunoAgendamento />} />
-            <Route path="perfil" element={<AlunoProfile />} />
+          {/* Aluno - Protegido por JWT e Sessão */}
+          <Route element={<ProtectedRoute allowedRoles={['aluno', 'admin']} />}>
+            <Route path="/aluno" element={<AlunoLayout />}>
+              <Route index element={<AlunoDashboard />} />
+              <Route path="chat" element={<AlunoChat />} />
+              <Route path="chat/:id" element={<AlunoChat />} />
+              <Route path="chamados" element={<AlunoChamados />} />
+              <Route path="chamados/novo" element={<NovoChamado />} />
+              <Route path="chamados/:id" element={<DetalheChamadoAluno />} />
+              <Route path="documentos" element={<AlunoDocumentos />} />
+              <Route path="agendamento" element={<AlunoAgendamento />} />
+              <Route path="perfil" element={<AlunoProfile />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* ASA - Protegido por JWT e Sessão */}
-        <Route element={<ProtectedRoute allowedRoles={['asa', 'admin']} />}>
-          <Route path="/asa" element={<AsaLayout />}>
-            <Route index element={<AsaDashboard />} />
-            <Route path="agendamentos" element={<AsaAgendamentos />} />
-            <Route path="chamados" element={<AsaFila />} />
-            <Route path="chamados/:id" element={<AsaDetalheChamado />} />
-            <Route path="conversas" element={<AsaConversas />} />
-            <Route path="alunos" element={<AsaAlunos />} />
-            <Route path="agente-ia" element={<AsaAgenteIA />} />
-            <Route path="base-conhecimento" element={<AsaBaseConhecimento />} />
-            <Route path="sla" element={<AsaSLA />} />
-            <Route path="metricas" element={<AsaMetricas />} />
-            <Route path="relatorios" element={<AsaRelatorios />} />
-            <Route path="notificacoes" element={<AsaNotificacoes />} />
-            <Route path="auditoria" element={<AsaAuditoria />} />
+          {/* ASA - Protegido por JWT e Sessão */}
+          <Route element={<ProtectedRoute allowedRoles={['asa', 'admin']} />}>
+            <Route path="/asa" element={<AsaLayout />}>
+              <Route index element={<AsaDashboard />} />
+              <Route path="agendamentos" element={<AsaAgendamentos />} />
+              <Route path="chamados" element={<AsaFila />} />
+              <Route path="chamados/:id" element={<AsaDetalheChamado />} />
+              <Route path="conversas" element={<AsaConversas />} />
+              <Route path="alunos" element={<AsaAlunos />} />
+              <Route path="agente-ia" element={<AsaAgenteIA />} />
+              <Route path="base-conhecimento" element={<AsaBaseConhecimento />} />
+              <Route path="sla" element={<AsaSLA />} />
+              <Route path="metricas" element={<AsaMetricas />} />
+              <Route path="relatorios" element={<AsaRelatorios />} />
+              <Route path="notificacoes" element={<AsaNotificacoes />} />
+              <Route path="auditoria" element={<AsaAuditoria />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* Admin - Protegido por JWT e Sessão */}
-        <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminCommandCenter />} />
-            <Route path="chamados" element={<AdminChamados />} />
-            <Route path="fila" element={<AdminFila />} />
-            <Route path="sla" element={<AdminSLA />} />
-            <Route path="categorias" element={<AdminCategorias />} />
-            <Route path="automacoes" element={<AdminAutomacoes />} />
-            <Route path="agente-ia" element={<AdminAgenteIA />} />
-            <Route path="prompts" element={<AdminPrompts />} />
-            <Route path="base-conhecimento" element={<AdminBaseConhecimento />} />
-            <Route path="rag" element={<AdminRAG />} />
-            <Route path="feedback" element={<AdminFeedback />} />
-            <Route path="usuarios" element={<AdminUsuarios />} />
-            <Route path="alunos" element={<AdminAlunos />} />
-            <Route path="asa" element={<AdminEquipeASA />} />
-            <Route path="permissoes" element={<AdminPermissoes />} />
-            <Route path="integracoes" element={<AdminIntegracoes />} />
-            <Route path="metricas" element={<AdminMetricas />} />
-            <Route path="relatorios" element={<AdminRelatorios />} />
-            <Route path="auditoria" element={<AdminAuditoria />} />
-            <Route path="logs" element={<AdminLogs />} />
-            <Route path="seguranca" element={<AdminSeguranca />} />
-            <Route path="configuracoes" element={<AdminConfiguracoes />} />
-            <Route path="saude" element={<AdminSaude />} />
+          {/* Admin - Protegido por JWT e Sessão */}
+          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminCommandCenter />} />
+              <Route path="chamados" element={<AdminChamados />} />
+              <Route path="fila" element={<AdminFila />} />
+              <Route path="sla" element={<AdminSLA />} />
+              <Route path="categorias" element={<AdminCategorias />} />
+              <Route path="automacoes" element={<AdminAutomacoes />} />
+              <Route path="agente-ia" element={<AdminAgenteIA />} />
+              <Route path="prompts" element={<AdminPrompts />} />
+              <Route path="base-conhecimento" element={<AdminBaseConhecimento />} />
+              <Route path="rag" element={<AdminRAG />} />
+              <Route path="feedback" element={<AdminFeedback />} />
+              <Route path="usuarios" element={<AdminUsuarios />} />
+              <Route path="alunos" element={<AdminAlunos />} />
+              <Route path="asa" element={<AdminEquipeASA />} />
+              <Route path="permissoes" element={<AdminPermissoes />} />
+              <Route path="integracoes" element={<AdminIntegracoes />} />
+              <Route path="metricas" element={<AdminMetricas />} />
+              <Route path="relatorios" element={<AdminRelatorios />} />
+              <Route path="auditoria" element={<AdminAuditoria />} />
+              <Route path="logs" element={<AdminLogs />} />
+              <Route path="seguranca" element={<AdminSeguranca />} />
+              <Route path="configuracoes" element={<AdminConfiguracoes />} />
+              <Route path="saude" element={<AdminSaude />} />
+            </Route>
           </Route>
-        </Route>
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }
