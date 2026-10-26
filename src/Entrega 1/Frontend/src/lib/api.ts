@@ -147,6 +147,7 @@ export const api = {
       request<any>(`/knowledge-base/${id}`, {
         method: 'DELETE',
       }),
+    getDownloadUrl: (id: string) => getFullUrl(`/knowledge-base/${id}/download`),
   },
 
   students: {
@@ -241,5 +242,6 @@ export const api = {
       }),
     getDocument: (id: string) => request<{ name: string; type: string; size: string; dataUrl: string }>(`/appointments/${id}/document`),
     getIcsUrl: (id: string) => getFullUrl(`/appointments/${id}/ics`),
+    getDownloadUrl: (id: string) => getFullUrl(`/appointments/${id}/download`),
   },
 }

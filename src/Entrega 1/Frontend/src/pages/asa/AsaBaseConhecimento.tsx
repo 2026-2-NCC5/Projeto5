@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  BookOpen, Search, FileText, Eye, Clock, Upload, Plus, Trash2, 
+  BookOpen, Search, FileText, Eye, Clock, Upload, Plus, Trash2, Download, Cloud, 
   CheckCircle2, Sparkles, AlertCircle, FileUp, X, BrainCircuit, RefreshCw
 } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -370,6 +370,11 @@ export default function AsaBaseConhecimento() {
                     <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 flex items-center gap-1 w-max">
                       <CheckCircle2 size={12} /> RAG Ativo
                     </span>
+                    {(doc.r2Key || doc.source === 'upload') && (
+                      <span className="px-2 py-0.5 text-[10px] rounded-full font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 flex items-center gap-1 w-max">
+                        <Cloud size={10} /> Cloudflare R2
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3.5 text-xs text-gray-600 dark:text-slate-400 font-mono">
                     {doc.chunkCount || 1} trechos
@@ -381,13 +386,29 @@ export default function AsaBaseConhecimento() {
                     {formatRelative(doc.updatedAt || doc.createdAt)}
                   </td>
                   <td className="px-4 py-3.5 text-right">
-                    <button
-                      onClick={(e) => handleDelete(doc.id, e)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                      title="Excluir da Base"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      {(doc.r2Key || doc.source === 'upload') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const token = localStorage.getItem('asaia_auth_token') || '';
+                            const url = api.kb.getDownloadUrl(doc.id);
+                            window.open(`${url}?token=${encodeURIComponent(token)}`, '_blank');
+                          }}
+                          className="p-1.5 text-blue-600 hover:text-blue-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer"
+                          title="Baixar Arquivo Original do Cloudflare R2"
+                        >
+                          <Download size={15} />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => handleDelete(doc.id, e)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                        title="Excluir da Base"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -653,13 +674,34 @@ export default function AsaBaseConhecimento() {
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-slate-700 text-xs text-gray-400">
-                <span>Criado por {viewDocModal.author || 'Equipe ASA'}</span>
-                <button
-                  onClick={() => setViewDocModal(null)}
-                  className="px-4 py-2 bg-brand-600 text-white rounded-lg font-semibold"
-                >
-                  Fechar
-                </button>
+                <div className="flex items-center gap-2">
+                  <span>Criado por {viewDocModal.author || 'Equipe ASA'}</span>
+                  {(viewDocModal.r2Key || viewDocModal.source === 'upload') && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 flex items-center gap-1">
+                      <Cloud size={11} /> Cloudflare R2
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {(viewDocModal.r2Key || viewDocModal.source === 'upload') && (
+                    <button
+                      onClick={() => {
+                        const token = localStorage.getItem('asaia_auth_token') || '';
+                        const url = api.kb.getDownloadUrl(viewDocModal.id);
+                        window.open(`${url}?token=${encodeURIComponent(token)}`, '_blank');
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Download size={13} /> Baixar Original (R2)
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setViewDocModal(null)}
+                    className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-semibold transition-colors cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth'
 import { appointmentService } from '../services/appointment.service'
 import { r2Service } from '../services/r2.service'
+import { prisma } from '../db'
 
 export const appointmentRouter = Router()
 
@@ -147,15 +148,22 @@ appointmentRouter.post('/', authenticateToken, async (req: AuthenticatedRequest,
       documentData,
     }, req.user)
 
-    // Sincronização de arquivo no Cloudflare R2
+    // Sincronização de arquivo no Cloudflare R2 e persistência do r2Key no banco
     if (documentData && r2Service.isConfigured()) {
-      const sanitizedName = (documentName || 'anexo').replace(/[^a-zA-Z0-9._-]/g, '_')
-      const r2Key = `agendamentos/${appointment.id}/${sanitizedName}`
-      r2Service.uploadBase64(r2Key, documentData).then(() => {
-        console.log(`☁️ Documento do agendamento sincronizado no R2: ${r2Key}`)
-      }).catch(err => {
-        console.warn('Sincronização R2 do anexo em segundo plano:', err.message)
-      })
+      try {
+        const sanitizedName = (documentName || 'anexo').replace(/[^a-zA-Z0-9._-]/g, '_')
+        const r2Key = `agendamentos/${appointment.id}/${sanitizedName}`
+        await r2Service.uploadBase64(r2Key, documentData)
+        // Salva a chave R2 no registro do agendamento
+        await prisma.appointment.update({
+          where: { id: appointment.id },
+          data: { r2Key },
+        })
+        appointment.r2Key = r2Key
+        console.log(`☁️ Documento do agendamento persistido no R2 e r2Key salvo: ${r2Key}`)
+      } catch (r2Err: any) {
+        console.warn('Falha na persistência R2 do anexo do agendamento:', r2Err.message)
+      }
     }
 
     res.status(201).json(appointment)
@@ -198,6 +206,44 @@ appointmentRouter.get('/:id/document', authenticateToken, async (req: Authentica
  * PATCH /api/appointments/:id/status
  * Atualiza o status do agendamento (iniciar atendimento, concluir, cancelar)
  */
+/**
+ * GET /api/appointments/:id/download
+ * Baixa o documento anexo do agendamento presencial hospedado no Cloudflare R2
+ */
+appointmentRouter.get('/:id/download', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const appointment = await appointmentService.getById(id)
+
+    if (!appointment) {
+      return res.status(404).json({ error: 'Agendamento não encontrado.' })
+    }
+
+    if (req.user?.role === 'aluno' && appointment.studentId !== req.user.id) {
+      return res.status(403).json({ error: 'Acesso não autorizado ao documento deste agendamento (LGPD).' })
+    }
+
+    if (appointment.r2Key && r2Service.isConfigured()) {
+      const presignedUrl = await r2Service.getPresignedUrl(appointment.r2Key, 3600)
+      if (presignedUrl) {
+        return res.redirect(presignedUrl)
+      }
+    }
+
+    if (appointment.documentData) {
+      return res.json({
+        name: appointment.documentName || 'anexo',
+        dataUrl: appointment.documentData,
+      })
+    }
+
+    return res.status(404).json({ error: 'Nenhum documento físico localizado no Cloudflare R2.' })
+  } catch (error: any) {
+    console.error('Erro ao baixar documento do R2:', error)
+    res.status(500).json({ error: 'Erro ao gerar download do anexo.' })
+  }
+})
+
 appointmentRouter.patch('/:id/status', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = String(req.params.id)

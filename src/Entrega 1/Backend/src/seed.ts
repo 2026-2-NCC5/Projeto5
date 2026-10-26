@@ -1,4 +1,5 @@
 import { prisma } from './db'
+import { r2Service } from './services/r2.service'
 import {
   mockUsers,
   mockStudents,
@@ -225,6 +226,18 @@ export async function seedDatabase() {
   // 6. Knowledge Base Documents
   console.log('Criando base de conhecimento...')
   for (const kb of mockKBDocuments) {
+    let r2Key: string | null = (kb as any).r2Key || null
+    if (r2Service.isConfigured() && kb.content) {
+      try {
+        const key = `kb/${kb.id}/manual_estudante_fecap.txt`
+        await r2Service.uploadBuffer(key, Buffer.from(kb.content, 'utf-8'), 'text/plain')
+        r2Key = key
+        console.log(`☁️ Documento KB seed sincronizado no Cloudflare R2: ${key}`)
+      } catch (e: any) {
+        console.warn('Falha no upload seed KB para R2:', e.message)
+      }
+    }
+
     await prisma.kBDocument.upsert({
       where: { id: kb.id },
       update: {
@@ -237,6 +250,7 @@ export async function seedDatabase() {
         tags: JSON.stringify(kb.tags || []),
         views: kb.views,
         indexed: kb.indexed ?? true,
+        r2Key: r2Key,
       },
       create: {
         id: kb.id,
@@ -413,6 +427,21 @@ export async function seedDatabase() {
   // 13. Appointments (Agendamentos Presenciais ASA)
   console.log('Criando agendamentos presenciais do ASA...')
   for (const apt of mockAppointments) {
+    let r2Key: string | null = (apt as any).r2Key || null
+    const docName = apt.documentName || 'comprovante_matricula_fecap.txt'
+    const sampleDocContent = `COMPROVANTE DE AGENDAMENTO PRESENCIAL ASA FECAP\nProtocolo: ${apt.protocol}\nAluno: ${apt.studentName} (RA: ${apt.studentRa})\nAssunto: ${apt.subject}\nData: ${apt.date} às ${apt.time}\nLocal: ${apt.location}\nStatus: ${apt.status}\n\nDocumento autenticado digitalmente e armazenado no Cloudflare R2.`
+
+    if (r2Service.isConfigured()) {
+      try {
+        const key = `agendamentos/${apt.id}/${docName}`
+        await r2Service.uploadBuffer(key, Buffer.from(sampleDocContent, 'utf-8'), 'text/plain')
+        r2Key = key
+        console.log(`☁️ Anexo do agendamento seed sincronizado no Cloudflare R2: ${key}`)
+      } catch (e: any) {
+        console.warn('Falha no upload seed agendamento para R2:', e.message)
+      }
+    }
+
     await prisma.appointment.upsert({
       where: { id: apt.id },
       update: {
@@ -434,6 +463,11 @@ export async function seedDatabase() {
         attendantName: apt.attendantName || null,
         resolutionNotes: (apt as any).resolutionNotes || null,
         googleCalendarLink: apt.googleCalendarLink || null,
+        documentName: docName,
+        documentType: "text/plain",
+        documentSize: "2.4 KB",
+        documentData: "data:text/plain;base64," + Buffer.from(sampleDocContent).toString("base64"),
+        r2Key: r2Key,
       },
       create: {
         id: apt.id,
@@ -455,6 +489,11 @@ export async function seedDatabase() {
         attendantName: apt.attendantName || null,
         resolutionNotes: (apt as any).resolutionNotes || null,
         googleCalendarLink: apt.googleCalendarLink || null,
+        documentName: docName,
+        documentType: "text/plain",
+        documentSize: "2.4 KB",
+        documentData: "data:text/plain;base64," + Buffer.from(sampleDocContent).toString("base64"),
+        r2Key: r2Key,
       },
     })
   }

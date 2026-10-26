@@ -71,7 +71,13 @@ export default function AsaAgendamentos() {
   } | null>(null)
 
   const handleOpenDocument = (apt: Appointment) => {
-    if (!apt.documentName && !apt.documentData) return
+    if (!apt.documentName && !apt.documentData && !(apt as any).r2Key) return
+    if ((apt as any).r2Key && !apt.documentData) {
+      const token = localStorage.getItem('asaia_auth_token') || ''
+      const url = api.appointments.getDownloadUrl(apt.id)
+      window.open(`${url}?token=${encodeURIComponent(token)}`, '_blank')
+      return
+    }
     setPreviewDocument({
       name: apt.documentName || 'documento-agendamento',
       type: apt.documentType,
@@ -655,15 +661,24 @@ export default function AsaAgendamentos() {
                           >
                             Ver
                           </button>
-                          {apt.documentData && (
-                            <a
-                              href={apt.documentData}
-                              download={apt.documentName}
-                              className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 font-semibold text-[10px] hover:bg-gray-50 transition-colors"
-                            >
-                              Baixar
-                            </a>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (apt.documentData) {
+                                const a = document.createElement('a')
+                                a.href = apt.documentData
+                                a.download = apt.documentName || 'anexo'
+                                a.click()
+                              } else {
+                                const token = localStorage.getItem('asaia_auth_token') || ''
+                                const url = api.appointments.getDownloadUrl(apt.id)
+                                window.open(`${url}?token=${encodeURIComponent(token)}`, '_blank')
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 font-semibold text-[10px] hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            Baixar
+                          </button>
                         </div>
                       </div>
                     )}
