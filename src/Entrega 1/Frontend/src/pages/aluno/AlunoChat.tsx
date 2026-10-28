@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Paperclip, Plus, ArrowLeft, Bot, Book, Sparkles, MessageSquare, Loader2, Ticket as TicketIcon, Cloud, Download } from 'lucide-react';
+import { Send, Paperclip, Plus, ArrowLeft, Bot, Book, Sparkles, MessageSquare, Loader2, Ticket as TicketIcon, Cloud, Download, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { formatRelative, cn } from '../../lib/utils';
 import { api } from '../../lib/api';
 import MarkdownRenderer from '../../components/ui/MarkdownRenderer';
@@ -18,6 +18,23 @@ export default function AlunoChat() {
   const [isLoadingConv, setIsLoadingConv] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false); // Mobile
+  const [evaluatedMessages, setEvaluatedMessages] = useState<Record<string, 'positive' | 'negative'>>({});
+
+  const handleFeedback = async (msg: any, type: 'positive' | 'negative') => {
+    if (evaluatedMessages[msg.id]) return;
+    setEvaluatedMessages(prev => ({ ...prev, [msg.id]: type }));
+    try {
+      await api.chat.sendFeedback({
+        conversationId: activeConvId,
+        messageId: msg.id,
+        type,
+        snippet: (msg.content || '').slice(0, 200),
+        comment: type === 'positive' ? 'Aluno avaliou resposta como útil.' : 'Aluno avaliou que a resposta precisa de ajustes.',
+      });
+    } catch (e) {
+      console.error('Erro ao enviar feedback:', e);
+    }
+  };
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

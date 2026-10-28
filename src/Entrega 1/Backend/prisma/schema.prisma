@@ -40,6 +40,7 @@ model Student {
   tickets       Ticket[]
   conversations Conversation[]
   appointments  Appointment[]
+  feedbacks     AIFeedback[]
 }
 
 model Ticket {
@@ -268,4 +269,20 @@ model AdminAIReport {
   metricsSnapshot String
   authorId        String?
   createdAt       DateTime @default(now())
+}
+
+
+model AIFeedback {
+  id             String   @id @default(uuid())
+  studentId      String?
+  studentName    String   @default("Aluno")
+  conversationId String?
+  messageId      String?
+  type           String   // 'positive' | 'negative'
+  snippet        String
+  comment        String?
+  rating         Int?     @default(5)
+  createdAt      DateTime @default(now())
+
+  student        Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
 }

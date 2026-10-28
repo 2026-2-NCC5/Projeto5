@@ -653,3 +653,34 @@ adminRouter.get('/ai-analysis/history', authenticateToken, requireRole(['admin',
     res.status(500).json({ error: 'Erro ao buscar histórico de análises de IA' })
   }
 })
+
+
+// AI Feedback Overview (Real Data from AIFeedback table)
+adminRouter.get('/feedback', authenticateToken, requireRole(['admin', 'asa']), async (req, res) => {
+  try {
+    const [feedbacks, positiveCount, negativeCount, totalCount] = await Promise.all([
+      prisma.aIFeedback.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      prisma.aIFeedback.count({ where: { type: 'positive' } }),
+      prisma.aIFeedback.count({ where: { type: 'negative' } }),
+      prisma.aIFeedback.count(),
+    ])
+
+    const positiveRate = totalCount > 0 ? Math.round((positiveCount / totalCount) * 100) : 0
+    const negativeRate = totalCount > 0 ? Math.round((negativeCount / totalCount) * 100) : 0
+
+    res.json({
+      positiveCount,
+      negativeCount,
+      totalCount,
+      positiveRate,
+      negativeRate,
+      feedbacks,
+    })
+  } catch (error) {
+    console.error('Erro ao buscar feedback:', error)
+    res.status(500).json({ error: 'Erro ao buscar métricas de feedback' })
+  }
+})

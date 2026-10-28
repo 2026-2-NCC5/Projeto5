@@ -294,3 +294,42 @@ chatRouter.get('/conversations/:id/r2-snapshot', authenticateToken, async (req: 
     res.status(500).json({ error: error.message || 'Erro ao consultar Cloudflare R2' })
   }
 })
+
+
+// Send feedback on AI response
+chatRouter.post('/feedback', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { conversationId, messageId, type, snippet, comment, rating } = req.body
+    if (!type || !snippet) {
+      return res.status(400).json({ error: 'Tipo e snippet da resposta são obrigatórios' })
+    }
+
+    let studentId = req.user?.id || null
+    let studentName = req.user?.name || 'Aluno FECAP'
+
+    if (studentId) {
+      const student = await prisma.student.findUnique({ where: { id: studentId } })
+      if (!student) {
+        studentId = null
+      }
+    }
+
+    const feedback = await prisma.aIFeedback.create({
+      data: {
+        studentId,
+        studentName,
+        conversationId: conversationId || null,
+        messageId: messageId || null,
+        type: type === 'negative' ? 'negative' : 'positive',
+        snippet: String(snippet).slice(0, 300),
+        comment: comment ? String(comment).slice(0, 500) : null,
+        rating: typeof rating === 'number' ? rating : (type === 'positive' ? 5 : 2),
+      },
+    })
+
+    res.status(201).json(feedback)
+  } catch (error: any) {
+    console.error('Erro ao salvar feedback:', error)
+    res.status(500).json({ error: 'Erro ao registrar feedback' })
+  }
+})

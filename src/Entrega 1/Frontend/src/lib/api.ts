@@ -115,6 +115,18 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ content }),
       }),
+    sendFeedback: (data: {
+      conversationId?: string
+      messageId?: string
+      type: 'positive' | 'negative'
+      snippet: string
+      comment?: string
+      rating?: number
+    }) =>
+      request<any>('/chat/feedback', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   kb: {
@@ -260,6 +272,26 @@ getUsers: (role?: string) => {
         metricsSnapshot: any
         createdAt: string
       }>>('/admin/ai-analysis/history'),
+    getFeedback: () =>
+      request<{
+        positiveCount: number
+        negativeCount: number
+        totalCount: number
+        positiveRate: number
+        negativeRate: number
+        feedbacks: Array<{
+          id: string
+          studentId?: string
+          studentName: string
+          conversationId?: string
+          messageId?: string
+          type: 'positive' | 'negative'
+          snippet: string
+          comment?: string
+          rating?: number
+          createdAt: string
+        }>
+      }>('/admin/feedback'),
     getNotifications: () => request<any[]>('/admin/notifications'),
     markNotificationRead: (id: string) =>
       request<any>(`/admin/notifications/${id}/read`, { method: 'PATCH' }),
