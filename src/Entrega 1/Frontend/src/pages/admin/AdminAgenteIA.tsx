@@ -1,216 +1,401 @@
-import React, { useState } from 'react';
-import { 
-  Bot, Activity, MessageSquare, CheckCircle, Zap, Settings, 
-  ThumbsUp, UserX, Info, AlertTriangle 
-} from 'lucide-react';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
-} from 'recharts';
-import { cn } from '@/lib/utils';
-import { mockChartData } from '@/lib/mock-data';
+import { useState, useEffect } from 'react'
+import {
+  Sparkles,
+  Bot,
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  History,
+  TrendingUp,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  FileText
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '@/lib/utils'
+import { api } from '@/lib/api'
+
+interface AIReport {
+  id: string
+  summary: string
+  healthScore: number
+  diagnostics: string[]
+  recommendations: Array<{
+    priority: 'alta' | 'media' | 'baixa'
+    title: string
+    description: string
+    impact: string
+    category: string
+  }>
+  metricsSnapshot: any
+  createdAt: string
+}
 
 export default function AdminAgenteIA() {
-  const [model, setModel] = useState('gpt-4o');
-  const [behavior, setBehavior] = useState('moderado');
-  const [confidence, setConfidence] = useState(80);
-  const [handoff, setHandoff] = useState(60);
-  
+  const [currentReport, setCurrentReport] = useState<AIReport | null>(null)
+  const [history, setHistory] = useState<AIReport[]>([])
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [successNotice, setSuccessNotice] = useState<string | null>(null)
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
+
+  const loadHistory = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const reports = await api.admin.getAIAnalysisHistory()
+      setHistory(reports)
+      if (reports.length > 0 && !currentReport) {
+        setCurrentReport(reports[0])
+        setSelectedHistoryId(reports[0].id)
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar histórico de IA:', err)
+      setError('Falha ao carregar análises prévias de IA.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadHistory()
+  }, [])
+
+  const handleRunAnalysis = async () => {
+    setGenerating(true)
+    setError(null)
+    setSuccessNotice(null)
+
+    try {
+      const newReport = await api.admin.runAIAnalysis()
+      setCurrentReport(newReport)
+      setSelectedHistoryId(newReport.id)
+      setHistory(prev => [newReport, ...prev.filter(r => r.id !== newReport.id)])
+      setSuccessNotice('Novo diagnóstico operacional concluído com sucesso pelo Google Gemini!')
+      setTimeout(() => setSuccessNotice(null), 5000)
+    } catch (err: any) {
+      console.error('Erro ao gerar análise com IA:', err)
+      setError(err.message || 'Falha ao processar análise via Google Gemini.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleSelectReport = (report: AIReport) => {
+    setCurrentReport(report)
+    setSelectedHistoryId(report.id)
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
-            Inteligência do Álvaro AI
-          </h1>
-          <div className="flex items-center gap-2 px-3 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400 rounded-full text-sm font-medium">
-            <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
-            Operacional
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+              Inteligência & Diagnósticos com IA
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 dark:bg-brand-950/50 dark:text-brand-400 border border-brand-200 dark:border-brand-800 flex items-center gap-1.5">
+              <Bot className="w-3.5 h-3.5" />
+              Google Gemini 3.5 Flash-Lite
+            </span>
           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-gray-500 dark:text-slate-400">Modelo Atual</h3>
-            <Bot className="w-5 h-5 text-brand-600" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">GPT-4o</p>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Tempo médio: 1.2s</p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-gray-500 dark:text-slate-400">Conversas (30 dias)</h3>
-            <MessageSquare className="w-5 h-5 text-blue-600" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">1.847</p>
-          <p className="text-sm text-brand-600 dark:text-brand-400 mt-1 flex items-center gap-1">
-            <Zap className="w-4 h-4" /> +12% que mês anterior
+          <p className="text-sm text-gray-500 dark:text-slate-400">
+            Diagnóstico analítico contínuo sobre volume de alunos, fila ASA, cumprimento de SLA e gargalos operacionais.
           </p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-gray-500 dark:text-slate-400">Resolução Autônoma</h3>
-            <CheckCircle className="w-5 h-5 text-brand-600" />
+        <button
+          onClick={handleRunAnalysis}
+          disabled={generating}
+          className="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+        >
+          {generating ? (
+            <>
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>Analisando Dados Reais...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              <span>Gerar Novo Diagnóstico com IA</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Notifications */}
+      {successNotice && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-2"
+        >
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span>{successNotice}</span>
+        </motion.div>
+      )}
+
+      {error && (
+        <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Primary KPI Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase">Índice de Saúde</span>
+            <Activity className="w-4 h-4 text-emerald-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">73.2%</p>
-          <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-            Encaminhamento: 26.8%
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+            {currentReport ? `${currentReport.healthScore}/100` : '--'}
+          </p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+            {currentReport && currentReport.healthScore >= 80 ? 'Operação em alta conformidade' : 'Requer atenção operacional'}
           </p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium text-gray-500 dark:text-slate-400">Satisfação IA</h3>
-            <ThumbsUp className="w-5 h-5 text-purple-600" />
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase">Diagnósticos Chave</span>
+            <Layers className="w-4 h-4 text-blue-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">89%</p>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-            Feedback positivo
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+            {currentReport?.diagnostics.length || 0}
           </p>
+          <p className="text-xs text-gray-400 mt-1">Pontos observados nos dados</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase">Ações Recomendadas</span>
+            <TrendingUp className="w-4 h-4 text-brand-600" />
+          </div>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+            {currentReport?.recommendations.length || 0}
+          </p>
+          <p className="text-xs text-brand-600 mt-1">Priorizadas por impacto</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase">Relatórios Salvos</span>
+            <History className="w-4 h-4 text-purple-600" />
+          </div>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+            {history.length}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Registrados no banco</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-card p-6">
-          <h3 className="font-semibold text-gray-900 dark:text-slate-100 mb-6">Métricas da IA</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={mockChartData?.aiMetrics || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorResolvidos" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorEncaminhados" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc' }}
-                  itemStyle={{ color: '#f8fafc' }}
-                />
-                <Area type="monotone" dataKey="resolvidos_ia" name="Resolvidos IA" stroke="#16a34a" fillOpacity={1} fill="url(#colorResolvidos)" />
-                <Area type="monotone" dataKey="encaminhados" name="Encaminhados" stroke="#f59e0b" fillOpacity={1} fill="url(#colorEncaminhados)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+      {/* Main Analysis Display */}
+      {loading ? (
+        <div className="p-12 text-center text-sm text-gray-500 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-brand-600 mb-2" />
+          Carregando análises de IA...
         </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-card p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Settings className="w-5 h-5 text-gray-500" />
-            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Configuração do Agente</h3>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Modelo de Linguagem
-              </label>
-              <select 
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="gpt-4o">GPT-4o (Recomendado)</option>
-                <option value="gpt-4o-mini">GPT-4o-mini (Mais rápido)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Comportamento
-              </label>
-              <select 
-                value={behavior}
-                onChange={(e) => setBehavior(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="conservador">Conservador (Mais encaminhamentos)</option>
-                <option value="moderado">Moderado</option>
-                <option value="proativo">Proativo (Tenta resolver tudo)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Confiança Mínima: {confidence}%
-              </label>
-              <input 
-                type="range" 
-                min="0" max="100" 
-                value={confidence}
-                onChange={(e) => setConfidence(Number(e.target.value))}
-                className="w-full accent-brand-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Encaminhamento humano abaixo de: {handoff}%
-              </label>
-              <input 
-                type="range" 
-                min="0" max="100" 
-                value={handoff}
-                onChange={(e) => setHandoff(Number(e.target.value))}
-                className="w-full accent-amber-500"
-              />
-            </div>
-
-            <button className="w-full mt-4 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150">
-              Salvar Configurações
-            </button>
-          </div>
+      ) : !currentReport ? (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-dashed border-gray-300 dark:border-slate-700 p-12 text-center">
+          <Sparkles className="w-12 h-12 text-brand-500 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Nenhum relatório de IA gerado ainda</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+            Clique no botão acima para acionar a API do Google Gemini, que analisará em tempo real a base de alunos, chamados da equipe ASA e metas de SLA.
+          </p>
+          <button
+            onClick={handleRunAnalysis}
+            disabled={generating}
+            className="mt-4 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2"
+          >
+            <Sparkles className="w-4 h-4" /> Executar Primeira Análise
+          </button>
         </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-card p-6">
-        <h3 className="font-semibold text-gray-900 dark:text-slate-100 mb-4">Recomendações Pendentes</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-500 dark:text-slate-400 uppercase bg-gray-50 dark:bg-slate-900 border-b border-gray-100 dark:border-slate-700">
-              <tr>
-                <th className="px-4 py-3 font-medium">Chamado</th>
-                <th className="px-4 py-3 font-medium">Recomendação IA</th>
-                <th className="px-4 py-3 font-medium">Confiança</th>
-                <th className="px-4 py-3 font-medium text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-              <tr className="hover:bg-gray-50 dark:hover:bg-slate-900/50">
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">#1024 - Dúvida sobre DP</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-slate-300">Sugerir abertura de protocolo via Secretaria Online</td>
-                <td className="px-4 py-3 text-brand-600 font-medium">92%</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button className="text-xs px-3 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40">Aplicar</button>
-                    <button className="text-xs px-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40">Rejeitar</button>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Executive Summary & Diagnostics (2 Cols) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Executive Summary Card */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-brand-50 dark:bg-brand-950/50 rounded-lg text-brand-600">
+                    <FileText className="w-5 h-5" />
                   </div>
-                </td>
-              </tr>
-              <tr className="hover:bg-gray-50 dark:hover:bg-slate-900/50">
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">#1025 - Erro no Moodle</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-slate-300">Encaminhar para suporte técnico N2</td>
-                <td className="px-4 py-3 text-amber-600 font-medium">78%</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button className="text-xs px-3 py-1 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-400 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40">Aplicar</button>
-                    <button className="text-xs px-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40">Rejeitar</button>
+                  <div>
+                    <h3 className="font-bold text-gray-900 dark:text-slate-100">
+                      Resumo Executivo da Operação
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      Gerado em {new Date(currentReport.createdAt).toLocaleString('pt-BR')}
+                    </p>
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500">Saúde:</span>
+                  <span className={cn(
+                    'px-2.5 py-0.5 rounded-full text-xs font-bold',
+                    currentReport.healthScore >= 80
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                  )}>
+                    {currentReport.healthScore}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-100 dark:border-slate-700 text-sm text-gray-800 dark:text-slate-200 leading-relaxed font-normal">
+                {currentReport.summary}
+              </div>
+
+              {/* Real Snapshot Counters */}
+              {currentReport.metricsSnapshot && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 text-xs">
+                  <div>
+                    <span className="text-gray-400">Alunos no banco:</span>
+                    <p className="font-bold text-gray-900 dark:text-slate-100">{currentReport.metricsSnapshot.totalStudents || 0}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Equipe ASA Ativa:</span>
+                    <p className="font-bold text-gray-900 dark:text-slate-100">{currentReport.metricsSnapshot.activeAsa || 0}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Chamados Abertos:</span>
+                    <p className="font-bold text-gray-900 dark:text-slate-100">{currentReport.metricsSnapshot.openTickets || 0}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Risco de SLA:</span>
+                    <p className="font-bold text-red-600">{currentReport.metricsSnapshot.slaRiskTickets || 0}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Diagnostics List */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm">
+              <h3 className="font-bold text-gray-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                Constatações Diagnósticas Baseadas em Evidências
+              </h3>
+
+              <div className="space-y-2.5">
+                {currentReport.diagnostics.map((diag, index) => (
+                  <div
+                    key={index}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-900/40 border border-gray-100 dark:border-slate-700 text-sm text-gray-700 dark:text-slate-300"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-600 mt-2 shrink-0"></span>
+                    <span className="leading-snug">{diag}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Actionable Recommendations */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-brand-600" />
+                  Plano de Melhorias Recomendado pela IA
+                </h3>
+                <span className="text-xs text-gray-400">Ordenado por prioridade</span>
+              </div>
+
+              <div className="space-y-4">
+                {currentReport.recommendations.map((rec, i) => (
+                  <div
+                    key={i}
+                    className="p-4 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-brand-500/40 dark:hover:border-brand-500/40 transition-all bg-white dark:bg-slate-800/80 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider',
+                            rec.priority === 'alta'
+                              ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800'
+                              : rec.priority === 'media'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                          )}
+                        >
+                          Prioridade {rec.priority}
+                        </span>
+                        <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">
+                          {rec.category}
+                        </span>
+                      </div>
+                    </div>
+
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-slate-100 mb-1">
+                      {rec.title}
+                    </h4>
+
+                    <p className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed mb-3">
+                      {rec.description}
+                    </p>
+
+                    <div className="p-2.5 bg-gray-50 dark:bg-slate-900/60 rounded-lg border border-gray-100 dark:border-slate-700 flex items-center justify-between text-xs">
+                      <span className="text-gray-500 font-medium">Impacto Estimado:</span>
+                      <span className="font-bold text-brand-700 dark:text-brand-400">{rec.impact}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* History Sidebar (1 Col) */}
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2 text-sm">
+                  <History className="w-4 h-4 text-gray-500" />
+                  Histórico de Análises
+                </h3>
+                <span className="text-xs text-gray-400">{history.length} salva(s)</span>
+              </div>
+
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {history.map((rep) => {
+                  const isSelected = selectedHistoryId === rep.id
+
+                  return (
+                    <button
+                      key={rep.id}
+                      onClick={() => handleSelectReport(rep)}
+                      className={cn(
+                        'w-full text-left p-3 rounded-lg border text-xs transition-all cursor-pointer block',
+                        isSelected
+                          ? 'border-brand-500 bg-brand-50/50 dark:bg-brand-950/20'
+                          : 'border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/40'
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-900 dark:text-slate-100">
+                          Saúde {rep.healthScore}/100
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          {new Date(rep.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-gray-500 dark:text-slate-400 line-clamp-2">
+                        {rep.summary}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
-  );
+  )
 }

@@ -185,10 +185,81 @@ export const api = {
     updatePrompt: (id: string, data: any) =>
       request<any>(`/admin/prompts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     getIntegrations: () => request<any[]>('/admin/integrations'),
-    getUsers: (role?: string) => {
+getUsers: (role?: string) => {
       const qs = role ? `?role=${role}` : ''
       return request<any[]>(`/admin/users${qs}`)
     },
+    createUser: (data: { name: string; email: string; password?: string; role?: string; department?: string }) =>
+      request<any>('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+    updateUserStatus: (id: string, status: string) =>
+      request<any>(`/admin/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    getDashboardStats: () => request<{
+      totalStudents: number
+      totalAsa: number
+      activeAsa: number
+      totalTickets: number
+      openTickets: number
+      resolvedTickets: number
+      slaRiskTickets: number
+      appointmentsCount: number
+      pieData: { name: string; value: number; color: string }[]
+      chartData: { name: string; abertos: number; resolvidos: number }[]
+      teamStatus: { id: string; name: string; email: string; avatar: string; status: string; lastAccess: string; tickets: number }[]
+      recentAuditEvents: { id: string; userName: string; action: string; createdAt: string; details?: string; severity: string }[]
+      systemHealth: { label: string; status: string; color: string }[]
+    }>('/admin/dashboard-stats'),
+    getStudents: (params?: { search?: string; course?: string; status?: string; period?: string; page?: number; limit?: number }) => {
+      const query = new URLSearchParams()
+      if (params?.search) query.set('search', params.search)
+      if (params?.course) query.set('course', params.course)
+      if (params?.status) query.set('status', params.status)
+      if (params?.period) query.set('period', params.period)
+      if (params?.page) query.set('page', String(params.page))
+      if (params?.limit) query.set('limit', String(params.limit))
+      const qs = query.toString()
+      return request<{
+        students: any[]
+        total: number
+        page: number
+        totalPages: number
+      }>(`/admin/students${qs ? `?${qs}` : ''}`)
+    },
+    createStudent: (data: any) =>
+      request<any>('/admin/students', { method: 'POST', body: JSON.stringify(data) }),
+    updateStudentStatus: (id: string, status: string) =>
+      request<any>(`/admin/students/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    runAIAnalysis: () =>
+      request<{
+        id: string
+        summary: string
+        healthScore: number
+        diagnostics: string[]
+        recommendations: Array<{
+          priority: 'alta' | 'media' | 'baixa'
+          title: string
+          description: string
+          impact: string
+          category: string
+        }>
+        metricsSnapshot: any
+        createdAt: string
+      }>('/admin/ai-analysis', { method: 'POST' }),
+    getAIAnalysisHistory: () =>
+      request<Array<{
+        id: string
+        summary: string
+        healthScore: number
+        diagnostics: string[]
+        recommendations: Array<{
+          priority: 'alta' | 'media' | 'baixa'
+          title: string
+          description: string
+          impact: string
+          category: string
+        }>
+        metricsSnapshot: any
+        createdAt: string
+      }>>('/admin/ai-analysis/history'),
     getNotifications: () => request<any[]>('/admin/notifications'),
     markNotificationRead: (id: string) =>
       request<any>(`/admin/notifications/${id}/read`, { method: 'PATCH' }),

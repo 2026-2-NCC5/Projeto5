@@ -556,6 +556,162 @@ Responda APENAS em formato JSON com as chaves:
 
     return actions
   }
+
+  /**
+   * Gera relatório executivo e diagnósticos administrativos via IA com base nos dados reais do sistema
+   */
+  public async generateAdminExecutiveReport(metrics: {
+    totalStudents: number
+    totalAsa: number
+    activeAsa: number
+    totalTickets: number
+    openTickets: number
+    resolvedTickets: number
+    slaRiskTickets: number
+    categoryDistribution: Record<string, number>
+    recentTicketSample: string[]
+    topAttendantLoads: { name: string; tickets: number }[]
+  }): Promise<{
+    summary: string
+    healthScore: number
+    diagnostics: string[]
+    recommendations: Array<{
+      priority: 'alta' | 'media' | 'baixa'
+      title: string
+      description: string
+      impact: string
+      category: string
+    }>
+  }> {
+    const genAI = this.getGenAI()
+
+    if (genAI) {
+      for (const modelName of ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash']) {
+        try {
+          const model = genAI.getGenerativeModel({ model: modelName })
+
+          const prompt = `Você é o analista sênior de inteligência operacional e governança da Faculdade FECAP (Central de Atendimento ao Aluno - ASA).
+Analise os seguintes dados reais da operação acadêmica e de atendimento:
+
+- Alunos cadastrados na base: ${metrics.totalStudents}
+- Equipe ASA cadastrada: ${metrics.totalAsa} (${metrics.activeAsa} ativos)
+- Total de Chamados no histórico: ${metrics.totalTickets}
+- Chamados Abertos/Em atendimento hoje: ${metrics.openTickets}
+- Chamados Resolvidos: ${metrics.resolvedTickets}
+- Chamados em Risco/Estouro de SLA: ${metrics.slaRiskTickets}
+- Distribuição de Chamados por Categoria: ${JSON.stringify(metrics.categoryDistribution)}
+- Carga de trabalho por atendente: ${JSON.stringify(metrics.topAttendantLoads)}
+- Amostra de solicitações recentes dos alunos: ${JSON.stringify(metrics.recentTicketSample)}
+
+Gere um diagnóstico operacional estruturado, profissional e objetivo para a gestão da FECAP.
+IMPORTANTE: Não invente dados ou estatísticas fora do contexto fornecido.
+Responda APENAS em formato JSON no formato abaixo, sem markdown adicional:
+{
+  "summary": "Resumo executivo de 2 a 3 frases sintetizando o status geral da operação e a capacidade de atendimento do ASA.",
+  "healthScore": 85,
+  "diagnostics": [
+    "Diagnóstico 1 fundamentado nos números",
+    "Diagnóstico 2 sobre distribuição de demanda ou gargalos",
+    "Diagnóstico 3 sobre eficiência da equipe ou risco de SLA"
+  ],
+  "recommendations": [
+    {
+      "priority": "alta",
+      "title": "Ação de melhoria recomendada",
+      "description": "Justificativa técnica e operacional detalhada com base nos dados apresentados.",
+      "impact": "Impacto mensurável esperado",
+      "category": "Operacional"
+    }
+  ]
+}`
+
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('TIMEOUT_6S')), 6000)
+          )
+
+          const res = await Promise.race([
+            model.generateContent(prompt),
+            timeoutPromise,
+          ])
+
+          const textRes = res.response.text().replace(/```json|```/g, '').trim()
+          const parsed = JSON.parse(textRes)
+
+          return {
+            summary: parsed.summary || 'Operação ASA monitorada com sucesso. O sistema mantém estabilidade nas filas de atendimento.',
+            healthScore: typeof parsed.healthScore === 'number' ? parsed.healthScore : 85,
+            diagnostics: Array.isArray(parsed.diagnostics) && parsed.diagnostics.length > 0 ? parsed.diagnostics : [
+              `Base de ${metrics.totalStudents} alunos ativos monitorada com ${metrics.openTickets} chamados em aberto.`,
+              `Equipe ASA conta com ${metrics.activeAsa} atendentes ativos para cobrir a demanda atual.`
+            ],
+            recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0 ? parsed.recommendations : []
+          }
+        } catch (err) {
+          console.warn('[Admin AI Analysis] Tentando próximo modelo ou fallback...');
+        }
+      }
+    }
+
+    // Heurística analítica fallback baseada em dados reais
+    const diagnostics = []
+    const recommendations = []
+
+    let score = 90
+    if (metrics.slaRiskTickets > 0) {
+      score -= Math.min(25, metrics.slaRiskTickets * 8)
+      diagnostics.push(`Foram identificados ${metrics.slaRiskTickets} chamado(s) com SLA em risco ou estourado na fila.`)
+      recommendations.push({
+        priority: 'alta',
+        title: 'Força-tarefa para chamados com estouro de SLA',
+        description: 'Priorizar o redirecionamento dos chamados críticos para atendentes com menor ocupação para evitar descumprimento de prazos acadêmicos.',
+        impact: 'Eliminação imediata do risco de SLA em atraso',
+        category: 'Operacional'
+      })
+    }
+
+    const categories = Object.entries(metrics.categoryDistribution).sort((a, b) => b[1] - a[1])
+    if (categories.length > 0) {
+      const [topCat, topCount] = categories[0]
+      diagnostics.push(`A categoria ${topCat.toUpperCase()} concentra o maior volume da plataforma com ${topCount} solicitações registradas.`)
+      recommendations.push({
+        priority: 'media',
+        title: `Otimização e automação da categoria ${topCat}`,
+        description: `Alimentar a Base de Conhecimento com artigos específicos sobre ${topCat} para permitir maior taxa de autoatendimento via Álvaro AI.`,
+        impact: 'Redução estimada de até 30% em novas aberturas dessa categoria',
+        category: 'Base de Conhecimento'
+      })
+    }
+
+    const avgTicketsPerAttendant = metrics.activeAsa > 0 ? (metrics.openTickets / metrics.activeAsa).toFixed(1) : '0'
+    diagnostics.push(`Média atual de ${avgTicketsPerAttendant} chamados abertos por atendente ativo da equipe ASA.`)
+
+    if (metrics.activeAsa === 0 && metrics.openTickets > 0) {
+      score -= 20
+      recommendations.push({
+        priority: 'alta',
+        title: 'Nenhum atendente ASA ativo para chamados pendentes',
+        description: 'Existem chamados abertos mas nenhum membro da equipe ASA está marcado como ativo no sistema.',
+        impact: 'Retomada imediata do fluxo de atendimento aos alunos',
+        category: 'Equipe ASA'
+      })
+    }
+
+    recommendations.push({
+      priority: 'baixa',
+      title: 'Aprimoramento contínuo de prompts da IA',
+      description: 'Revisar os prompts institucionais na aba de Governança para manter respostas acolhedoras e dentro das diretrizes FECAP.',
+      impact: 'Aumento de 5% a 10% no índice de satisfação dos alunos',
+      category: 'Inteligência'
+    })
+
+    return {
+      summary: `Operação da Central ASA analisada com base em ${metrics.totalTickets} chamados e ${metrics.totalStudents} alunos. Índice de saúde operacional em ${score}/100 com ${metrics.openTickets} demandas ativas no momento.`,
+      healthScore: Math.max(30, Math.min(100, score)),
+      diagnostics,
+      recommendations
+    }
+  }
+
 }
 
 export const aiService = new AIService()

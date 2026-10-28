@@ -258,3 +258,14 @@ model Appointment {
   student            Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
   attendant          User?    @relation("AttendantAppointments", fields: [attendantId], references: [id])
 }
+
+model AdminAIReport {
+  id              String   @id @default(uuid())
+  summary         String
+  healthScore     Int      @default(85)
+  diagnostics     String
+  recommendations String
+  metricsSnapshot String
+  authorId        String?
+  createdAt       DateTime @default(now())
+}
