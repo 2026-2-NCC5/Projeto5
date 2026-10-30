@@ -1,67 +1,34 @@
 import { Router } from 'express'
 import { prisma } from '../db'
-import { AuthenticatedRequest, authenticateToken } from '../middleware/auth'
+import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth'
+import { ACTIVE_TICKET_STATUSES, liveSlaStatus, metricTicketSelect, reportPeriod, statusAuditQuery, ticketAnalytics } from '../services/admin-metrics'
 
 export const metricsRouter = Router()
+metricsRouter.use(authenticateToken, requireRole(['admin', 'asa']))
 
 // Metrics Overview
 metricsRouter.get('/overview', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const totalTickets = await prisma.ticket.count()
-    const openTickets = await prisma.ticket.count({ where: { status: 'aberto' } })
-    const inProgressTickets = await prisma.ticket.count({ where: { status: 'em_atendimento' } })
-    const waitingTickets = await prisma.ticket.count({ where: { status: 'aguardando_aluno' } })
-    const resolvedTickets = await prisma.ticket.count({ where: { status: 'resolvido' } })
-    const closedTickets = await prisma.ticket.count({ where: { status: 'fechado' } })
-
-    const breachedTickets = await prisma.ticket.count({ where: { slaStatus: 'breached' } })
-    const slaAdherence = totalTickets > 0 ? Number((((totalTickets - breachedTickets) / totalTickets) * 100).toFixed(1)) : 98.4
-
-    // Distribution by category
-    const allTickets = await prisma.ticket.findMany({ select: { category: true, priority: true } })
-    const categoryCounts: Record<string, number> = {}
-    const priorityCounts: Record<string, number> = {}
-
-    for (const t of allTickets) {
-      categoryCounts[t.category] = (categoryCounts[t.category] || 0) + 1
-      priorityCounts[t.priority] = (priorityCounts[t.priority] || 0) + 1
-    }
-
-    // Attendants workload
-    const attendants = await prisma.user.findMany({
-      where: { role: 'asa', status: 'ativo' },
-      include: {
-        _count: {
-          select: {
-            assignedTickets: {
-              where: { status: { in: ['em_atendimento', 'aguardando_aluno'] } },
-            },
-          },
+    const days = req.query.days === undefined ? 30 : Number(req.query.days)
+    if (![1, 7, 30, 90].includes(days)) return res.status(400).json({ error: 'Período inválido. Use 1, 7, 30 ou 90 dias.' })
+    const period = reportPeriod(days)
+    const [tickets, audits, feedback, attendants, totalStudents, totalKB] = await Promise.all([
+      prisma.ticket.findMany({ select: metricTicketSelect }),
+      prisma.auditEvent.findMany(statusAuditQuery),
+      prisma.aIFeedback.findMany({ where: { createdAt: { gte: period.start, lte: period.end } }, select: { rating: true } }),
+      prisma.user.findMany({
+        where: { role: 'asa', status: 'ativo' },
+        select: {
+          id: true, name: true, email: true,
+          _count: { select: { assignedTickets: { where: { status: { in: ACTIVE_TICKET_STATUSES } } } } },
         },
-      },
-    })
-
-    const totalStudents = await prisma.student.count()
-    const totalKB = await prisma.kBDocument.count({ where: { status: 'ativo' } })
-
+        orderBy: { name: 'asc' },
+      }),
+      prisma.student.count(),
+      prisma.kBDocument.count({ where: { status: 'ativo' } }),
+    ])
     res.json({
-      summary: {
-        totalTickets,
-        openTickets,
-        inProgressTickets,
-        waitingTickets,
-        resolvedTickets,
-        closedTickets,
-        totalStudents,
-        totalKB,
-        resolutionRate: totalTickets > 0 ? Number((((resolvedTickets + closedTickets) / totalTickets) * 100).toFixed(1)) : 94.2,
-        slaAdherence,
-        csat: 4.85,
-        avgResponseMinutes: 18,
-        avgResolutionHours: 3.4,
-      },
-      categoryDistribution: Object.entries(categoryCounts).map(([name, value]) => ({ name, value })),
-      priorityDistribution: Object.entries(priorityCounts).map(([name, value]) => ({ name, value })),
+      ...ticketAnalytics(tickets, audits, feedback, period, { totalStudents, totalKB }),
       attendantsWorkload: attendants.map(a => ({
         id: a.id,
         name: a.name,
@@ -92,16 +59,18 @@ metricsRouter.get('/queue', authenticateToken, async (req: AuthenticatedRequest,
       orderBy: { slaDeadline: 'asc' },
     })
 
-    const now = new Date().getTime()
+    const now = new Date()
     const formatted = queueTickets.map(t => {
-      const remainingMs = new Date(t.slaDeadline).getTime() - now
+      const remainingMs = new Date(t.slaDeadline).getTime() - now.getTime()
       const remainingMinutes = Math.round(remainingMs / (1000 * 60))
+      const slaStatus = liveSlaStatus(t, now)
       return {
         ...t,
+        slaStatus,
         tags: JSON.parse(t.tags || '[]'),
         slaRemainingMinutes: remainingMinutes,
-        isSlaRisk: remainingMinutes < 60 && remainingMinutes > 0,
-        isSlaBreached: remainingMinutes <= 0,
+        isSlaRisk: slaStatus === 'risk',
+        isSlaBreached: slaStatus === 'breached',
       }
     })
 

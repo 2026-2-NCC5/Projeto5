@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { useAdminQuery } from '@/lib/use-admin-query'
 
 interface FeedbackItem {
   id: string
@@ -28,37 +29,11 @@ interface FeedbackItem {
 }
 
 export default function AdminFeedback() {
-  const [feedbackData, setFeedbackData] = useState<{
-    positiveCount: number
-    negativeCount: number
-    totalCount: number
-    positiveRate: number
-    negativeRate: number
-    feedbacks: FeedbackItem[]
-  } | null>(null)
-
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: feedbackData, loading, error, refresh: loadFeedback } = useAdminQuery(api.admin.getFeedback)
   const [filter, setFilter] = useState<'all' | 'positive' | 'negative'>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
-  const loadFeedback = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await api.admin.getFeedback()
-      setFeedbackData(data)
-    } catch (err: any) {
-      console.error('Erro ao carregar feedback:', err)
-      setError('Falha ao sincronizar avaliações com o banco de dados.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  useEffect(() => {
-    loadFeedback()
-  }, [])
 
   const filteredList = (feedbackData?.feedbacks || []).filter((item) => {
     const matchesType = filter === 'all' || item.type === filter

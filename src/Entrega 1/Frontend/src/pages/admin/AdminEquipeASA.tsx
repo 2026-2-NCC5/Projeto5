@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, MoreVertical, Clock, Ticket, UserCheck, ShieldAlert, CheckCircle, RefreshCw, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { useAdminQuery } from '@/lib/use-admin-query'
 
 interface AsaMember {
   id: string
@@ -19,8 +20,6 @@ interface AsaMember {
 
 export default function AdminEquipeASA() {
   const [team, setTeam] = useState<AsaMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
@@ -32,23 +31,8 @@ export default function AdminEquipeASA() {
   const [department, setDepartment] = useState('Atendimento ao Aluno (ASA)')
   const [formError, setFormError] = useState<string | null>(null)
 
-  const loadTeam = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await api.admin.getUsers('asa')
-      setTeam(data)
-    } catch (err: any) {
-      console.error('Erro ao buscar equipe ASA:', err)
-      setError('Não foi possível carregar a lista de atendentes.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadTeam()
-  }, [])
+  const { data, loading, error, refresh: loadTeam } = useAdminQuery(() => api.admin.getUsers('asa'))
+  useEffect(() => { if (data) setTeam(data) }, [data])
 
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,6 +69,7 @@ export default function AdminEquipeASA() {
     setTogglingId(member.id)
     try {
       await api.admin.updateUserStatus(member.id, nextStatus)
+      await loadTeam()
       setTeam(prev => prev.map(m => m.id === member.id ? { ...m, status: nextStatus } : m))
     } catch (err: any) {
       alert('Erro ao alterar status: ' + err.message)
@@ -196,7 +181,7 @@ export default function AdminEquipeASA() {
                       <span className="text-xs font-medium">Chamados</span>
                     </div>
                     <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{ticketCount}</p>
-                    <p className="text-[10px] text-gray-400">em atendimento</p>
+                    <p className="text-[10px] text-gray-400">ativos atribuídos</p>
                   </div>
                   <div className="bg-gray-50 dark:bg-slate-900/50 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400 mb-1">

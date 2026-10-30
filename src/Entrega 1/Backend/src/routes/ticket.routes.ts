@@ -1,9 +1,16 @@
 import { Router } from 'express'
 import { prisma } from '../db'
-import { AuthenticatedRequest, authenticateToken } from '../middleware/auth'
+import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth'
 import { aiService } from '../services/ai.service'
 
 export const ticketRouter = Router()
+
+const staffSelect = { id: true, name: true, email: true, avatar: true, department: true }
+function currentSla(ticket: { status: string; slaDeadline: Date; slaStatus: string }) {
+  if (['resolvido', 'fechado'].includes(ticket.status)) return ticket.slaStatus
+  const remaining = ticket.slaDeadline.getTime() - Date.now()
+  return remaining <= 0 ? 'breached' : remaining < 3_600_000 ? 'risk' : 'ok'
+}
 
 // List tickets with filters
 ticketRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
@@ -24,10 +31,10 @@ ticketRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res) 
       where.priority = String(priority)
     }
 
-    if (studentId) {
-      where.studentId = String(studentId)
-    } else if (req.user?.role === 'aluno') {
+    if (req.user?.role === 'aluno') {
       where.studentId = req.user.id
+    } else if (studentId) {
+      where.studentId = String(studentId)
     }
 
     if (assignedTo) {
@@ -57,6 +64,7 @@ ticketRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res) 
         },
         aiSuggestion: true,
         messages: {
+          where: req.user?.role === 'aluno' ? { isInternal: false } : undefined,
           orderBy: { createdAt: 'asc' },
           include: { attachments: true },
         },
@@ -66,6 +74,7 @@ ticketRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res) 
 
     const formatted = tickets.map(t => ({
       ...t,
+      slaStatus: currentSla(t),
       tags: JSON.parse(t.tags || '[]'),
     }))
 
@@ -97,6 +106,7 @@ ticketRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, re
         },
         aiSuggestion: true,
         messages: {
+          where: req.user?.role === 'aluno' ? { isInternal: false } : undefined,
           orderBy: { createdAt: 'asc' },
           include: { attachments: true },
         },
@@ -107,8 +117,13 @@ ticketRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, re
       return res.status(404).json({ error: 'Chamado não encontrado' })
     }
 
+    if (req.user?.role === 'aluno' && ticket.studentId !== req.user.id) {
+      return res.status(403).json({ error: 'Você não tem acesso a este chamado' })
+    }
+
     res.json({
       ...ticket,
+      slaStatus: currentSla(ticket),
       tags: JSON.parse(ticket.tags || '[]'),
     })
   } catch (error) {
@@ -126,7 +141,13 @@ ticketRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res)
       return res.status(400).json({ error: 'Título, descrição e categoria são obrigatórios' })
     }
 
-    const effectiveStudentId = studentId || req.user?.id || 'aluno-01'
+    const effectiveStudentId = req.user?.role === 'aluno' ? req.user.id : studentId
+    if (!effectiveStudentId || !await prisma.student.findUnique({ where: { id: effectiveStudentId } })) {
+      return res.status(400).json({ error: 'Informe um aluno cadastrado para abrir o chamado' })
+    }
+    if (conversationId && !await prisma.conversation.findFirst({ where: { id: conversationId, studentId: effectiveStudentId } })) {
+      return res.status(400).json({ error: 'A conversa não pertence ao aluno do chamado' })
+    }
 
     // Calculate ticket number
     const maxTicket = await prisma.ticket.findFirst({
@@ -139,7 +160,9 @@ ticketRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res)
     const aiAnalysis = await aiService.analyzeTicket(title, description, category)
 
     const finalPriority = priority || aiAnalysis.suggestedPriority
-    const slaHours = finalPriority === 'critica' ? 2 : finalPriority === 'alta' ? 4 : finalPriority === 'media' ? 24 : 72
+    const rules = await prisma.sLARule.findMany({ where: { active: true, priority: finalPriority }, orderBy: { updatedAt: 'desc' } })
+    const rule = rules.find(r => r.category === category.toLowerCase()) || rules.find(r => !r.category)
+    const slaHours = rule?.resolutionHours ?? (finalPriority === 'critica' ? 2 : finalPriority === 'alta' ? 4 : finalPriority === 'media' ? 24 : 72)
     const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000)
 
     const createdTicket = await prisma.ticket.create({
@@ -178,7 +201,7 @@ ticketRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res)
       },
       include: {
         student: true,
-        attendant: true,
+        attendant: { select: staffSelect },
         aiSuggestion: true,
         messages: true,
       },
@@ -208,10 +231,19 @@ ticketRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res)
 })
 
 // Update ticket status / assignment / priority
-ticketRouter.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+ticketRouter.patch('/:id', authenticateToken, requireRole(['asa', 'admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const id = String(req.params.id)
     const { status, priority, assignedTo, category, tags } = req.body
+    if (status !== undefined && !['aberto', 'em_atendimento', 'aguardando_aluno', 'resolvido', 'fechado'].includes(status)) {
+      return res.status(400).json({ error: 'Status inválido' })
+    }
+    if (priority !== undefined && !['baixa', 'media', 'alta', 'critica'].includes(priority)) {
+      return res.status(400).json({ error: 'Prioridade inválida' })
+    }
+    if (assignedTo && !await prisma.user.findFirst({ where: { id: assignedTo, role: { in: ['asa', 'admin'] }, status: 'ativo' } })) {
+      return res.status(400).json({ error: 'Selecione um atendente ativo da equipe ASA ou administração' })
+    }
 
     const existingTicket = await prisma.ticket.findUnique({ where: { id } })
     if (!existingTicket) {
@@ -219,41 +251,50 @@ ticketRouter.patch('/:id', authenticateToken, async (req: AuthenticatedRequest, 
     }
 
     const dataToUpdate: any = {}
-    if (status) dataToUpdate.status = status
+    if (status && status !== existingTicket.status) {
+      dataToUpdate.status = status
+      dataToUpdate.slaStatus = ['resolvido', 'fechado'].includes(existingTicket.status) && ['resolvido', 'fechado'].includes(status)
+        ? existingTicket.slaStatus
+        : currentSla({ ...existingTicket, status: 'aberto' })
+    }
     if (priority) dataToUpdate.priority = priority
     if (assignedTo !== undefined) dataToUpdate.assignedTo = assignedTo
     if (category) dataToUpdate.category = category
     if (tags) dataToUpdate.tags = JSON.stringify(tags)
 
-    const updated = await prisma.ticket.update({
-      where: { id },
-      data: dataToUpdate,
-      include: {
-        student: true,
-        attendant: true,
-        aiSuggestion: true,
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          include: { attachments: true },
+    const updated = await prisma.$transaction(async tx => {
+      const ticket = await tx.ticket.update({
+        where: { id },
+        data: dataToUpdate,
+        include: {
+          student: true,
+          attendant: { select: staffSelect },
+          aiSuggestion: true,
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            include: { attachments: true },
+          },
         },
-      },
-    })
+      })
 
-    // Audit log
-    await prisma.auditEvent.create({
-      data: {
-        userId: req.user?.id,
-        userName: req.user?.name || 'Operador ASA',
-        userRole: req.user?.role || 'asa',
-        action: 'ticket.updated',
-        resource: 'Chamado',
-        resourceId: `#${updated.number}`,
-        details: `Chamado atualizado: ${JSON.stringify(dataToUpdate)}`,
-      },
+      // Audit log
+      await tx.auditEvent.create({
+        data: {
+          userId: req.user?.id,
+          userName: req.user?.name || 'Operador ASA',
+          userRole: req.user?.role || 'asa',
+          action: 'ticket.updated',
+          resource: 'Chamado',
+          resourceId: `#${ticket.number}`,
+          details: JSON.stringify({ ...dataToUpdate, previousStatus: existingTicket.status }),
+        },
+      })
+      return ticket
     })
 
     res.json({
       ...updated,
+      slaStatus: currentSla(updated),
       tags: JSON.parse(updated.tags || '[]'),
     })
   } catch (error) {
@@ -278,6 +319,9 @@ ticketRouter.post('/:id/messages', authenticateToken, async (req: AuthenticatedR
     }
 
     const senderRole = req.user?.role || 'aluno'
+    if (senderRole === 'aluno' && ticket.studentId !== req.user?.id) {
+      return res.status(403).json({ error: 'Você não tem acesso a este chamado' })
+    }
     const senderId = req.user?.id || (senderRole === 'aluno' ? ticket.studentId : 'asa-01')
     const senderName = req.user?.name || (senderRole === 'aluno' ? 'Aluno' : 'Atendente ASA')
 
@@ -288,7 +332,7 @@ ticketRouter.post('/:id/messages', authenticateToken, async (req: AuthenticatedR
         senderName,
         senderRole,
         content,
-        isInternal: Boolean(isInternal),
+        isInternal: senderRole === 'aluno' ? false : Boolean(isInternal),
         attachments: attachments && attachments.length > 0 ? {
           create: attachments.map((att: any) => ({
             name: att.name,

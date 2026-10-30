@@ -1,81 +1,30 @@
-import React, { useState } from 'react';
-import { 
-  Download, Filter, Clock, Terminal, ChevronDown
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState } from 'react'
+import { Download, RefreshCw, Terminal } from 'lucide-react'
+import { api } from '@/lib/api'
+import { useAdminQuery } from '@/lib/use-admin-query'
+import { AdminDataState } from '@/components/admin/AdminDataState'
+
+interface AuditLog { id: string; userName: string; userRole: string; action: string; resource: string; resourceId?: string; details?: string; severity: string; createdAt: string }
 
 export default function AdminLogs() {
-  const [level, setLevel] = useState('ALL');
+  const query = useAdminQuery<AuditLog[]>(() => api.admin.getAuditLogs({ limit: 500 }))
+  const [severity, setSeverity] = useState('')
+  const [search, setSearch] = useState('')
+  const logs = query.data ?? []
+  const visible = logs.filter(log => (!severity || log.severity === severity) && [log.userName, log.action, log.resource, log.details ?? ''].join(' ').toLowerCase().includes(search.toLowerCase()))
 
-  const mockLogs = [
-    { time: '2023-10-24 14:32:01.123', level: 'INFO', msg: 'System initialized successfully' },
-    { time: '2023-10-24 14:32:05.441', level: 'INFO', msg: 'User admin@fecap.br authenticated via SSO' },
-    { time: '2023-10-24 14:35:12.001', level: 'WARNING', msg: 'Rate limit approaching for API key ending in 4F2A' },
-    { time: '2023-10-24 14:40:22.987', level: 'ERROR', msg: 'Failed to connect to ERP database: timeout after 5000ms' },
-    { time: '2023-10-24 14:40:23.001', level: 'CRITICAL', msg: 'Financial sync job aborted due to persistent DB failures' },
-    { time: '2023-10-24 14:45:01.111', level: 'INFO', msg: 'RAG indexer started batch processing' },
-    { time: '2023-10-24 14:45:10.555', level: 'INFO', msg: 'RAG indexer completed. Processed 124 chunks.' },
-  ];
+  function download() {
+    const lines = visible.map(log => '[' + log.createdAt + '] [' + log.severity.toUpperCase() + '] ' + log.userName + ' (' + log.userRole + ') | ' + log.action + ' | ' + log.resource + ' ' + (log.resourceId ?? '') + ' | ' + (log.details ?? ''))
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' }))
+    const link = document.createElement('a'); link.href = url; link.download = 'auditoria-filtrada.log'; link.click(); URL.revokeObjectURL(url)
+  }
 
-  return (
-    <div className="space-y-4 h-full flex flex-col">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-          <Terminal className="w-6 h-6" />
-          Logs do Sistema
-        </h1>
-        <button className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-all">
-          <Download className="w-4 h-4" />
-          Baixar Logs (.log)
-        </button>
-      </div>
-
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 p-3 flex flex-wrap gap-3 items-center">
-        <div className="flex gap-2">
-          {['ALL', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'].map(l => (
-            <button
-              key={l}
-              onClick={() => setLevel(l)}
-              className={cn(
-                "px-3 py-1 text-xs font-medium rounded-full transition-colors",
-                level === l 
-                  ? "bg-gray-800 text-white dark:bg-slate-200 dark:text-slate-900" 
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-700"
-              )}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-        <div className="h-6 w-px bg-gray-200 dark:bg-slate-700 mx-2" />
-        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300 cursor-pointer">
-          <input type="checkbox" defaultChecked className="rounded text-brand-600" />
-          Auto-scroll
-        </label>
-      </div>
-
-      <div className="flex-1 bg-[#1e1e1e] rounded-xl border border-gray-800 overflow-hidden flex flex-col min-h-[500px] shadow-inner font-mono text-sm">
-        <div className="bg-[#2d2d2d] border-b border-[#404040] px-4 py-2 flex items-center justify-between text-gray-400 text-xs">
-          <span>server-production-01.log</span>
-          <span>Atualizado ao vivo</span>
-        </div>
-        <div className="flex-1 overflow-auto p-4 space-y-1">
-          {mockLogs.filter(log => level === 'ALL' || log.level === level).map((log, i) => (
-            <div key={i} className="flex gap-4 hover:bg-white/5 px-2 py-0.5 rounded transition-colors break-all">
-              <span className="text-gray-500 shrink-0 select-none">[{log.time}]</span>
-              <span className={cn("shrink-0 font-bold min-w-[70px]", {
-                'text-green-400': log.level === 'INFO',
-                'text-amber-400': log.level === 'WARNING',
-                'text-red-400': log.level === 'ERROR',
-                'text-red-500 bg-red-500/10 px-1 rounded': log.level === 'CRITICAL',
-              })}>
-                [{log.level}]
-              </span>
-              <span className="text-gray-300 whitespace-pre-wrap">{log.msg}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="space-y-4">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-slate-100"><Terminal size={24} /> Logs de auditoria</h1><p className="mt-1 text-sm text-gray-500 dark:text-slate-400">Até 500 eventos recentes registrados no sistema. Atualização automática a cada 30 segundos.</p></div><div className="flex gap-2"><button onClick={() => void query.refresh()} className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 text-sm dark:text-slate-200"><RefreshCw size={16} /> Atualizar</button><button onClick={download} disabled={query.loading || !!query.error || !visible.length} className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white disabled:opacity-50"><Download size={16} /> Exportar exibidos</button></div></div>
+    <div className="flex flex-wrap gap-3 rounded-xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-3"><select aria-label="Severidade" value={severity} onChange={event => setSeverity(event.target.value)} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-2 text-sm dark:text-slate-200"><option value="">Todas as severidades</option>{Array.from(new Set(logs.map(log => log.severity))).sort().map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select><input aria-label="Buscar eventos" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar usuário, ação ou recurso..." className="min-w-0 flex-1 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-2 text-sm dark:text-slate-200" /></div>
+    <AdminDataState loading={query.loading} error={query.error} onRetry={query.refresh} empty={!visible.length}>
+      <div className="overflow-hidden rounded-xl border border-gray-800 bg-slate-950 font-mono text-sm"><div className="border-b border-slate-700 bg-slate-900 px-4 py-2 text-xs text-slate-400">{visible.length} eventos exibidos · Mais recentes primeiro</div><div className="max-h-[65vh] min-h-64 overflow-auto p-4 space-y-3">{visible.map(log => <article key={log.id} className="rounded-lg p-2 hover:bg-white/5"><div className="flex flex-wrap gap-x-3 gap-y-1"><time className="text-slate-400">{new Date(log.createdAt).toLocaleString('pt-BR')}</time><span className={log.severity === 'critical' || log.severity === 'error' ? 'text-red-400' : log.severity === 'warning' ? 'text-amber-400' : 'text-green-400'}>[{log.severity.toUpperCase()}]</span><span className="text-slate-100">{log.userName} · {log.action}</span></div><p className="mt-1 text-xs text-slate-400">{log.resource} {log.resourceId}</p>{log.details && <p className="mt-1 whitespace-pre-wrap break-words text-slate-300">{log.details}</p>}</article>)}</div></div>
+    </AdminDataState>
+    <p className="text-sm text-gray-500 dark:text-slate-400">Logs de infraestrutura, rastreamento de requisições e alertas do servidor não estão disponíveis. Esta tela apresenta os eventos de auditoria persistidos.</p>
+  </div>
 }

@@ -8,9 +8,10 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "seed": "tsx src/seed.ts",
-    "db:push": "prisma db push",
-    "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:push": "tsx src/prisma-cli.ts db push",
+    "db:generate": "tsx src/prisma-cli.ts generate",
+    "db:studio": "tsx src/prisma-cli.ts studio",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1156.0",

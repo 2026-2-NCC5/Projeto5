@@ -175,11 +175,12 @@ export const api = {
   },
 
   metrics: {
-    overview: () => request<any>('/metrics/overview'),
+    overview: (days?: number) => request<any>(`/metrics/overview${days ? `?days=${days}` : ''}`),
     queue: () => request<any[]>('/metrics/queue'),
   },
 
   admin: {
+    getHealth: () => request<any>('/admin/health'),
     getSLARules: () => request<any[]>('/admin/sla-rules'),
     createSLARule: (data: any) =>
       request<any>('/admin/sla-rules', { method: 'POST', body: JSON.stringify(data) }),
@@ -234,6 +235,8 @@ getUsers: (role?: string) => {
         total: number
         page: number
         totalPages: number
+        summary?: { total: number; regular: number; irregular: number; trancado: number }
+        courses?: string[]
       }>(`/admin/students${qs ? `?${qs}` : ''}`)
     },
     createStudent: (data: any) =>

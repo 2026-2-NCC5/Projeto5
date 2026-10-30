@@ -4,6 +4,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { exportCsv } from '@/lib/admin-utils'
+import { useAdminQuery } from '@/lib/use-admin-query'
 
 interface AuditLog {
   id: string
@@ -22,28 +24,11 @@ interface AuditLog {
 export default function AdminAuditoria() {
   const [view, setView] = useState<'table' | 'timeline'>('timeline')
   const [logs, setLogs] = useState<AuditLog[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [severityFilter, setSeverityFilter] = useState('todos')
 
-  const loadLogs = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await api.admin.getAuditLogs({ limit: 100 })
-      setLogs(data)
-    } catch (err: any) {
-      console.error('Erro ao carregar auditoria:', err)
-      setError('Falha ao sincronizar logs de auditoria do banco.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadLogs()
-  }, [])
+  const { data, loading, error, refresh: loadLogs } = useAdminQuery(() => api.admin.getAuditLogs({ limit: 100 }))
+  useEffect(() => { if (data) setLogs(data) }, [data])
 
   const filteredLogs = logs.filter((log) => {
     const matchesSearch =
@@ -61,26 +46,9 @@ export default function AdminAuditoria() {
       return
     }
 
-    const headers = ['Data/Hora', 'Usuário', 'Perfil', 'Ação', 'Recurso', 'Severidade', 'Detalhes', 'IP']
-    const rows = filteredLogs.map((l) => [
-      `"${new Date(l.createdAt).toLocaleString('pt-BR')}"`,
-      `"${l.userName}"`,
-      `"${l.userRole}"`,
-      `"${l.action}"`,
-      `"${l.resource}"`,
-      `"${l.severity}"`,
-      `"${(l.details || '').replace(/"/g, '""')}"`,
-      `"${l.ip || ''}"`,
-    ])
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n')
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `auditoria_fecap_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    exportCsv(`auditoria_fecap_${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Data', 'Usuário', 'Perfil', 'Ação', 'Recurso', 'ID', 'Detalhes', 'Severidade'],
+      filteredLogs.map(log => [log.createdAt, log.userName, log.userRole, log.action, log.resource, log.resourceId, log.details, log.severity]))
   }
 
   return (

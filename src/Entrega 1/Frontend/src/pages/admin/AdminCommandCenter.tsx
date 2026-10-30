@@ -22,6 +22,7 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { useAdminQuery } from '@/lib/use-admin-query'
 
 interface DashboardStats {
   totalStudents: number
@@ -40,31 +41,13 @@ interface DashboardStats {
 }
 
 export default function AdminCommandCenter() {
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { data: stats, loading, error, refresh } = useAdminQuery<DashboardStats>(api.admin.getDashboardStats)
   const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadData = async (isManual = false) => {
-    if (isManual) setRefreshing(true)
-    else setLoading(true)
-    setError(null)
-
-    try {
-      const data = await api.admin.getDashboardStats()
-      setStats(data)
-    } catch (err: any) {
-      console.error('Erro ao carregar dados reais do admin:', err)
-      setError(err.message || 'Falha ao sincronizar dados com o banco de dados.')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
+  const loadData = async (_manual = false) => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
   }
-
-  useEffect(() => {
-    loadData()
-  }, [])
 
   if (loading) {
     return (
@@ -103,7 +86,7 @@ export default function AdminCommandCenter() {
   }
 
   const resolutionRate = stats.totalTickets > 0
-    ? Math.round((stats.resolvedTickets / stats.totalTickets) * 100)
+    ? Number(((stats.resolvedTickets / stats.totalTickets) * 100).toFixed(1))
     : 0
 
   return (
@@ -114,11 +97,11 @@ export default function AdminCommandCenter() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Central de Controle</h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
-              Dados em Tempo Real
+              Atualização a cada 30 s
             </span>
           </div>
           <p className="text-sm text-gray-500 dark:text-slate-400">
-            Monitoramento da infraestrutura, alunos cadastrados e operação da equipe ASA.
+            Serviços configurados, alunos cadastrados e operação da equipe ASA.
           </p>
         </div>
 
@@ -185,7 +168,7 @@ export default function AdminCommandCenter() {
               ? 'text-amber-800 dark:text-amber-400'
               : 'text-emerald-800 dark:text-emerald-400'
           )}>
-            {stats.slaRiskTickets > 0 ? 'Atenção Operacional Requerida' : 'Operação Estável e Saudável'}
+            {stats.slaRiskTickets > 0 ? 'Atenção Operacional Requerida' : 'Nenhum chamado com SLA em risco'}
           </h3>
           <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-700 dark:text-slate-300">
             <Link to="/admin/sla" className="flex items-center gap-1 hover:underline font-medium">
@@ -198,11 +181,11 @@ export default function AdminCommandCenter() {
             </Link>
             <Link to="/admin/alunos" className="flex items-center gap-1 hover:underline font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-              {stats.totalStudents} alunos ativos cadastrados
+              {stats.totalStudents} alunos cadastrados
             </Link>
             <Link to="/admin/asa" className="flex items-center gap-1 hover:underline font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              {stats.activeAsa} de {stats.totalAsa} atendentes ASA em operação
+              {stats.activeAsa} de {stats.totalAsa} contas ASA ativas
             </Link>
           </div>
         </div>
@@ -215,7 +198,7 @@ export default function AdminCommandCenter() {
             label: 'Alunos Cadastrados',
             value: stats.totalStudents,
             icon: Users,
-            subtext: 'Base oficial FECAP',
+            subtext: 'Cadastros do sistema',
             color: 'text-blue-600',
             link: '/admin/alunos'
           },
@@ -223,7 +206,7 @@ export default function AdminCommandCenter() {
             label: 'Equipe ASA',
             value: stats.totalAsa,
             icon: UserCheck,
-            subtext: `${stats.activeAsa} em atividade`,
+            subtext: `${stats.activeAsa} contas ativas`,
             color: 'text-brand-600',
             link: '/admin/asa'
           },
@@ -231,7 +214,7 @@ export default function AdminCommandCenter() {
             label: 'Chamados em Aberto',
             value: stats.openTickets,
             icon: Ticket,
-            subtext: 'Aguardando atendimento',
+            subtext: 'Aguardando resolução',
             color: 'text-amber-600',
             link: '/admin/fila'
           },
@@ -241,7 +224,7 @@ export default function AdminCommandCenter() {
             icon: CheckCircle2,
             subtext: `${resolutionRate}% taxa de resolução`,
             color: 'text-emerald-600',
-            link: '/admin/fila'
+            link: '/admin/chamados'
           },
           {
             label: 'Agendamentos ASA',
@@ -249,7 +232,7 @@ export default function AdminCommandCenter() {
             icon: Calendar,
             subtext: 'Presenciais no campus',
             color: 'text-purple-600',
-            link: '/admin/saude'
+            link: '/admin/agendamentos'
           },
           {
             label: 'SLA em Risco / Estouro',
@@ -469,7 +452,7 @@ export default function AdminCommandCenter() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full object-cover" />
+                      {member.avatar ? <img src={member.avatar} alt={member.name} className="w-8 h-8 rounded-full object-cover" /> : <span className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold">{member.name.slice(0, 2).toUpperCase()}</span>}
                       <span
                         className={cn(
                           'absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-800',
