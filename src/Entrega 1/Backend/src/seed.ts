@@ -17,18 +17,20 @@ import {
 } from './mock-data'
 
 export async function seedDatabase() {
-  console.log('🌱 Iniciando Seed do Banco de Dados...')
-  console.log('🧹 Limpando dados antigos para manter apenas 1 exemplo por tela...')
-  await prisma.attachment.deleteMany().catch(() => {})
-  await prisma.ticketMessage.deleteMany().catch(() => {})
-  await prisma.aIAnalysis.deleteMany().catch(() => {})
-  await prisma.ticket.deleteMany().catch(() => {})
-  await prisma.chatMessage.deleteMany().catch(() => {})
-  await prisma.conversation.deleteMany().catch(() => {})
-  await prisma.appointment.deleteMany().catch(() => {})
-  await prisma.kBDocument.deleteMany().catch(() => {})
-  await prisma.student.deleteMany().catch(() => {})
-  await prisma.user.deleteMany().catch(() => {})
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Seed de demonstração desabilitado em produção.')
+  }
+  const existingRecords = await Promise.all([
+    prisma.user.count(), prisma.student.count(), prisma.ticket.count(),
+    prisma.kBDocument.count(), prisma.appointment.count(), prisma.conversation.count(),
+    prisma.auditEvent.count(), prisma.sLARule.count(), prisma.automationRule.count(),
+    prisma.aIPrompt.count(), prisma.integration.count(), prisma.notification.count(),
+    prisma.aIFeedback.count(), prisma.adminAIReport.count(),
+  ])
+  if (existingRecords.some(count => count > 0)) {
+    throw new Error('Seed permitido apenas em banco vazio de desenvolvimento. Nenhum registro existente foi alterado.')
+  }
+  console.log('Criando dados de demonstração em banco vazio de desenvolvimento...')
 
   // 1. Users
   console.log('Criando usuários...')

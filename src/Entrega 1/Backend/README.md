@@ -61,6 +61,10 @@ npm run db:push
 npm run seed
 ```
 
+O seed é opcional e exclusivo para um banco vazio de desenvolvimento. Ele recusa produção ou registros existentes sem apagá-los. Para dados reais, mantenha o mesmo banco usado pelo Aluno e pelo ASA e não execute seed.
+
+`DATABASE_URL` é compartilhado pela aplicação e pelos scripts `db:push`, `db:generate` e `db:studio`. Sem configuração, esses scripts usam `prisma/dev.db`; caminhos SQLite relativos são resolvidos a partir de `prisma/`. Em produção, use um arquivo em armazenamento persistente. Prefira os scripts npm acima ao invocar a CLI do Prisma diretamente.
+
 ### 4. Iniciar o servidor em modo de desenvolvimento
 ```bash
 npm run dev

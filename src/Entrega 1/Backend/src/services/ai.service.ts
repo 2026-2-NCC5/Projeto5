@@ -572,6 +572,8 @@ Responda APENAS em formato JSON com as chaves:
     recentTicketSample: string[]
     topAttendantLoads: { name: string; tickets: number }[]
   }): Promise<{
+    source: 'gemini' | 'local'
+    model?: string
     summary: string
     healthScore: number
     diagnostics: string[]
@@ -637,11 +639,14 @@ Responda APENAS em formato JSON no formato abaixo, sem markdown adicional:
           const textRes = res.response.text().replace(/```json|```/g, '').trim()
           const parsed = JSON.parse(textRes)
 
+          if (typeof parsed.summary !== 'string' || !Number.isFinite(parsed.healthScore)) throw new Error('Resposta de diagnóstico inválida')
           return {
+            source: 'gemini',
+            model: modelName,
             summary: parsed.summary || 'Operação ASA monitorada com sucesso. O sistema mantém estabilidade nas filas de atendimento.',
-            healthScore: typeof parsed.healthScore === 'number' ? parsed.healthScore : 85,
+            healthScore: Math.max(0, Math.min(100, Math.round(parsed.healthScore))),
             diagnostics: Array.isArray(parsed.diagnostics) && parsed.diagnostics.length > 0 ? parsed.diagnostics : [
-              `Base de ${metrics.totalStudents} alunos ativos monitorada com ${metrics.openTickets} chamados em aberto.`,
+              `Base de ${metrics.totalStudents} alunos cadastrados monitorada com ${metrics.openTickets} chamados em aberto.`,
               `Equipe ASA conta com ${metrics.activeAsa} atendentes ativos para cobrir a demanda atual.`
             ],
             recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0 ? parsed.recommendations : []
@@ -664,7 +669,7 @@ Responda APENAS em formato JSON no formato abaixo, sem markdown adicional:
         priority: 'alta',
         title: 'Força-tarefa para chamados com estouro de SLA',
         description: 'Priorizar o redirecionamento dos chamados críticos para atendentes com menor ocupação para evitar descumprimento de prazos acadêmicos.',
-        impact: 'Eliminação imediata do risco de SLA em atraso',
+        impact: 'Reduzir a quantidade de chamados em atraso; impacto a acompanhar',
         category: 'Operacional'
       })
     }
@@ -677,13 +682,12 @@ Responda APENAS em formato JSON no formato abaixo, sem markdown adicional:
         priority: 'media',
         title: `Otimização e automação da categoria ${topCat}`,
         description: `Alimentar a Base de Conhecimento com artigos específicos sobre ${topCat} para permitir maior taxa de autoatendimento via Álvaro AI.`,
-        impact: 'Redução estimada de até 30% em novas aberturas dessa categoria',
+        impact: 'Avaliar a redução de novas aberturas após atualizar a base',
         category: 'Base de Conhecimento'
       })
     }
 
-    const avgTicketsPerAttendant = metrics.activeAsa > 0 ? (metrics.openTickets / metrics.activeAsa).toFixed(1) : '0'
-    diagnostics.push(`Média atual de ${avgTicketsPerAttendant} chamados abertos por atendente ativo da equipe ASA.`)
+    if (metrics.activeAsa > 0) diagnostics.push(`Média atual de ${(metrics.openTickets / metrics.activeAsa).toFixed(1)} chamados abertos por conta ASA ativa.`)
 
     if (metrics.activeAsa === 0 && metrics.openTickets > 0) {
       score -= 20
@@ -700,12 +704,13 @@ Responda APENAS em formato JSON no formato abaixo, sem markdown adicional:
       priority: 'baixa',
       title: 'Aprimoramento contínuo de prompts da IA',
       description: 'Revisar os prompts institucionais na aba de Governança para manter respostas acolhedoras e dentro das diretrizes FECAP.',
-      impact: 'Aumento de 5% a 10% no índice de satisfação dos alunos',
+      impact: 'Acompanhar a satisfação nos próximos feedbacks',
       category: 'Inteligência'
     })
 
     return {
-      summary: `Operação da Central ASA analisada com base em ${metrics.totalTickets} chamados e ${metrics.totalStudents} alunos. Índice de saúde operacional em ${score}/100 com ${metrics.openTickets} demandas ativas no momento.`,
+      source: 'local',
+      summary: `Operação da Central ASA analisada com base em ${metrics.totalTickets} chamados e ${metrics.totalStudents} alunos. Índice estimado por regras locais em ${score}/100 com ${metrics.openTickets} demandas ativas no momento.`,
       healthScore: Math.max(30, Math.min(100, score)),
       diagnostics,
       recommendations

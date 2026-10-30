@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, Filter, Shield, Ban, CheckCircle, RefreshCw, X, User as UserIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { useAdminQuery } from '@/lib/use-admin-query'
 
 interface SystemUser {
   id: string
@@ -19,8 +20,6 @@ interface SystemUser {
 
 export default function AdminUsuarios() {
   const [users, setUsers] = useState<SystemUser[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('todos')
   const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null)
@@ -36,23 +35,8 @@ export default function AdminUsuarios() {
   const [department, setDepartment] = useState('Central de Atendimento ao Aluno')
   const [formError, setFormError] = useState<string | null>(null)
 
-  const loadUsers = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await api.admin.getUsers()
-      setUsers(data)
-    } catch (err: any) {
-      console.error('Erro ao buscar usuários:', err)
-      setError('Falha ao sincronizar usuários com o banco de dados.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadUsers()
-  }, [])
+  const { data, loading, error, refresh: loadUsers } = useAdminQuery(() => api.admin.getUsers())
+  useEffect(() => { if (data) setUsers(data) }, [data])
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -106,6 +90,7 @@ export default function AdminUsuarios() {
     setActionLoadingId(user.id)
     try {
       await api.admin.updateUserStatus(user.id, nextStatus)
+      await loadUsers()
       setUsers((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, status: nextStatus } : u))
       )

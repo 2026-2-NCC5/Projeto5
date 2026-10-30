@@ -74,11 +74,11 @@ export default function AdminAgenteIA() {
       setCurrentReport(newReport)
       setSelectedHistoryId(newReport.id)
       setHistory(prev => [newReport, ...prev.filter(r => r.id !== newReport.id)])
-      setSuccessNotice('Novo diagnóstico operacional concluído com sucesso pelo Google Gemini!')
+      setSuccessNotice('Novo diagnóstico operacional salvo com sucesso.')
       setTimeout(() => setSuccessNotice(null), 5000)
     } catch (err: any) {
       console.error('Erro ao gerar análise com IA:', err)
-      setError(err.message || 'Falha ao processar análise via Google Gemini.')
+      setError(err.message || 'Falha ao processar o diagnóstico.')
     } finally {
       setGenerating(false)
     }
@@ -100,11 +100,11 @@ export default function AdminAgenteIA() {
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 dark:bg-brand-950/50 dark:text-brand-400 border border-brand-200 dark:border-brand-800 flex items-center gap-1.5">
               <Bot className="w-3.5 h-3.5" />
-              Google Gemini 3.5 Flash-Lite
+              {currentReport?.metricsSnapshot?.analysisSource === 'gemini' ? 'Google Gemini' : currentReport?.metricsSnapshot?.analysisSource === 'local' ? 'Análise por regras locais' : 'Diagnóstico operacional'}
             </span>
           </div>
           <p className="text-sm text-gray-500 dark:text-slate-400">
-            Diagnóstico analítico contínuo sobre volume de alunos, fila ASA, cumprimento de SLA e gargalos operacionais.
+            Diagnóstico sob demanda sobre volume de alunos, fila ASA, cumprimento de SLA e gargalos operacionais.
           </p>
         </div>
 
@@ -121,7 +121,7 @@ export default function AdminAgenteIA() {
           ) : (
             <>
               <Sparkles className="w-4 h-4" />
-              <span>Gerar Novo Diagnóstico com IA</span>
+              <span>Gerar Novo Diagnóstico</span>
             </>
           )}
         </button>
@@ -150,14 +150,14 @@ export default function AdminAgenteIA() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase">Índice de Saúde</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase">Índice Estimado</span>
             <Activity className="w-4 h-4 text-emerald-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
             {currentReport ? `${currentReport.healthScore}/100` : '--'}
           </p>
           <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-            {currentReport && currentReport.healthScore >= 80 ? 'Operação em alta conformidade' : 'Requer atenção operacional'}
+            {currentReport ? 'Estimativa do diagnóstico selecionado' : 'Aguardando diagnóstico'}
           </p>
         </div>
 
@@ -191,7 +191,7 @@ export default function AdminAgenteIA() {
           <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
             {history.length}
           </p>
-          <p className="text-xs text-gray-400 mt-1">Registrados no banco</p>
+          <p className="text-xs text-gray-400 mt-1">Últimos 20 registros</p>
         </div>
       </div>
 
@@ -206,7 +206,7 @@ export default function AdminAgenteIA() {
           <Sparkles className="w-12 h-12 text-brand-500 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Nenhum relatório de IA gerado ainda</h3>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-            Clique no botão acima para acionar a API do Google Gemini, que analisará em tempo real a base de alunos, chamados da equipe ASA e metas de SLA.
+            Gere um diagnóstico com os registros atuais de alunos, chamados e SLA. Quando a IA não estiver disponível, a análise usará regras locais e identificará essa origem.
           </p>
           <button
             onClick={handleRunAnalysis}

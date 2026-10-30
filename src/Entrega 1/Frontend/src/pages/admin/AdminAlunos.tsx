@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Search, Filter, Download, User, RefreshCw, X, ChevronLeft, ChevronRight, Ticket, Calendar, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { useAdminQuery } from '@/lib/use-admin-query'
+import { exportCsv } from '@/lib/admin-utils'
 
 interface Student {
   id: string
@@ -22,59 +24,46 @@ interface Student {
 }
 
 export default function AdminAlunos() {
-  const [students, setStudents] = useState<Student[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // Filters & Pagination
   const [searchTerm, setSearchTerm] = useState('')
+  const [submittedSearch, setSubmittedSearch] = useState('')
   const [courseFilter, setCourseFilter] = useState('todos')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalStudents, setTotalStudents] = useState(0)
 
   // Details Modal
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [statusChanging, setStatusChanging] = useState(false)
 
-  const loadStudents = async (targetPage = page) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await api.admin.getStudents({
-        search: searchTerm.trim() || undefined,
-        course: courseFilter !== 'todos' ? courseFilter : undefined,
-        status: statusFilter !== 'todos' ? statusFilter : undefined,
-        page: targetPage,
-        limit: 15,
-      })
-      setStudents(res.students)
-      setTotalStudents(res.total)
-      setTotalPages(res.totalPages || 1)
-      setPage(res.page || 1)
-    } catch (err: any) {
-      console.error('Erro ao buscar alunos:', err)
-      setError('Falha ao sincronizar base de alunos do banco de dados.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  const { data, loading, error, refresh } = useAdminQuery(() => api.admin.getStudents({
+    search: submittedSearch || undefined,
+    course: courseFilter !== 'todos' ? courseFilter : undefined,
+    status: statusFilter !== 'todos' ? statusFilter : undefined,
+    page, limit: 15,
+  }), [submittedSearch, courseFilter, statusFilter, page])
+  const students: Student[] = data?.students || []
+  const totalStudents = data?.total || 0
+  const totalPages = data?.totalPages || 1
   useEffect(() => {
-    loadStudents(1)
-  }, [courseFilter, statusFilter])
-
+    if (data && page > totalPages) setPage(totalPages)
+  }, [data, page, totalPages])
+  const loadStudents = async (targetPage = page) => {
+    if (targetPage !== page) setPage(targetPage)
+    else await refresh()
+  }
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    loadStudents(1)
+    setPage(1)
+    setSubmittedSearch(searchTerm.trim())
+    if (page === 1 && submittedSearch === searchTerm.trim()) void refresh()
   }
 
   const handleUpdateStatus = async (studentId: string, newStatus: string) => {
     setStatusChanging(true)
     try {
       await api.admin.updateStudentStatus(studentId, newStatus)
-      setStudents(prev => prev.map(s => s.id === studentId ? { ...s, status: newStatus } : s))
+      await refresh()
       if (selectedStudent?.id === studentId) {
         setSelectedStudent({ ...selectedStudent, status: newStatus })
       }
@@ -91,26 +80,8 @@ export default function AdminAlunos() {
       return
     }
 
-    const headers = ['Nome', 'RA', 'Email', 'Curso', 'Semestre', 'Turno', 'Status', 'Chamados']
-    const rows = students.map(s => [
-      `"${s.name}"`,
-      `"${s.ra}"`,
-      `"${s.email}"`,
-      `"${s.course}"`,
-      s.semester,
-      `"${s.period}"`,
-      `"${s.status}"`,
-      s._count?.tickets || 0,
-    ])
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `alunos_fecap_${new Date().toISOString().slice(0, 10)}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    exportCsv(`alunos_fecap_pagina_${page}.csv`, ['Nome', 'RA', 'Email', 'Curso', 'Semestre', 'Turno', 'Status', 'Chamados'],
+      students.map(s => [s.name, s.ra, s.email, s.course, s.semester, s.period, s.status, s._count?.tickets || 0]))
   }
 
   return (
@@ -121,7 +92,7 @@ export default function AdminAlunos() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Base de Alunos</h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-              {totalStudents} Alunos no Banco
+              {totalStudents} Alunos encontrados
             </span>
           </div>
           <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -143,7 +114,7 @@ export default function AdminAlunos() {
             className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm"
           >
             <Download className="w-4 h-4" />
-            Exportar CSV
+            Exportar página CSV
           </button>
         </div>
       </div>
@@ -175,16 +146,11 @@ export default function AdminAlunos() {
               <span className="text-xs text-gray-500">Curso:</span>
               <select
                 value={courseFilter}
-                onChange={(e) => setCourseFilter(e.target.value)}
+                onChange={(e) => { setCourseFilter(e.target.value); setPage(1) }}
                 className="text-xs rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 px-2.5 py-1.5 text-gray-700 dark:text-slate-300 outline-none"
               >
                 <option value="todos">Todos os cursos</option>
-                <option value="Ciência da Computação">Ciência da Computação</option>
-                <option value="Administração">Administração</option>
-                <option value="Ciências Contábeis">Ciências Contábeis</option>
-                <option value="Economia">Economia</option>
-                <option value="Publicidade e Propaganda">Publicidade e Propaganda</option>
-                <option value="Relações Internacionais">Relações Internacionais</option>
+                {(data?.courses || []).map(course => <option key={course} value={course}>{course}</option>)}
               </select>
             </div>
 
@@ -192,7 +158,7 @@ export default function AdminAlunos() {
               <span className="text-xs text-gray-500">Status:</span>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
                 className="text-xs rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 px-2.5 py-1.5 text-gray-700 dark:text-slate-300 outline-none"
               >
                 <option value="todos">Todos os status</option>

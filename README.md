@@ -151,3 +151,30 @@ npm run dev
 ## 📄 Licença
 
 Projeto desenvolvido para fins educacionais no curso de graduação da **FECAP (Fundação Escola de Comércio Álvares Penteado)**. Todos os direitos reservados © 2026.
+
+## Painel administrativo com dados persistidos
+
+As telas de administração consultam a mesma API e o mesmo banco dos portais Aluno e ASA. Chamados, fila, alunos, equipe, agendamentos, feedbacks, documentos, regras e auditoria não têm fallback para exemplos no admin. As consultas são atualizadas a cada 30 segundos e ao voltar à janela; falhas de conexão aparecem com opção de tentar novamente.
+
+- Métricas aceitam períodos de 1, 7, 30 e 90 dias, no fuso `America/Sao_Paulo`. Os cartões de chamados consideram os criados no período; o gráfico considera eventos de criação e resolução ocorridos no período.
+- Tempos de primeira resposta usam mensagens públicas de ASA/admin. Resoluções usam as transições registradas em auditoria. Sem amostra suficiente, a interface mostra “Sem dados”. Avaliações da IA não representam satisfação com atendimento humano.
+- O SLA da fila usa o prazo atual. Novos chamados usam a regra ativa mais recente para prioridade/categoria, com preferência por regra específica. Sem regra cadastrada, mantém-se o prazo padrão por prioridade. Alterar uma regra não modifica chamados existentes.
+- Saúde verifica API/banco e informa se Gemini/R2 estão configurados; não inventa disponibilidade histórica ou latência externa. Diagnósticos identificam a origem Gemini ou regras locais e tratam o índice como estimativa.
+- Automações são definições persistidas; não há executor automático. Permissões individuais, SMTP e manutenção ainda não possuem edição pelo painel.
+
+### Preservação dos registros
+
+O build do Render não executa mais o seed de demonstração. `npm run seed` é permitido apenas em banco vazio de desenvolvimento e recusa produção ou registros existentes sem apagá-los. Dados de exemplo previamente gravados não são removidos automaticamente, pois compartilham o banco com os registros de uso.
+
+Para usar os dados já existentes, configure o frontend para a mesma API usada pelo Aluno/ASA (`VITE_API_URL`) e mantenha o banco existente no backend. A configuração Vercel do projeto já encaminha `/api` para o backend configurado. Não execute seed sobre a base real. Em hospedagens com disco efêmero, configure armazenamento persistente para SQLite antes de utilizar dados reais.
+
+### Validação
+
+```powershell
+npm run build:frontend
+npm run build:backend
+cd "src/Entrega 1/Backend"
+npm test
+```
+
+Os testes de integração exigem Node.js 22.13 ou superior, criam uma base SQLite isolada em `Backend/work/` e não consultam serviços externos. Cobrem o fluxo aluno → ASA → admin, filtros, permissões, SLA, estados vazios, resolução/reabertura e agregações acima de mil chamados.

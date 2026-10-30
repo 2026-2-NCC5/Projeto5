@@ -37,6 +37,7 @@ import AsaNotificacoes from './pages/asa/AsaNotificacoes'
 import AsaAuditoria from './pages/asa/AsaAuditoria'
 
 // Admin pages
+import AdminAgendamentos from './pages/admin/AdminAgendamentos'
 import AdminCommandCenter from './pages/admin/AdminCommandCenter'
 import AdminChamados from './pages/admin/AdminChamados'
 import AdminFila from './pages/admin/AdminFila'
@@ -123,6 +124,7 @@ function App() {
               <Route index element={<AdminCommandCenter />} />
               <Route path="chamados" element={<AdminChamados />} />
               <Route path="fila" element={<AdminFila />} />
+              <Route path="agendamentos" element={<AdminAgendamentos />} />
               <Route path="sla" element={<AdminSLA />} />
               <Route path="categorias" element={<AdminCategorias />} />
               <Route path="automacoes" element={<AdminAutomacoes />} />

@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, FileText, ListOrdered, Clock, Tag, Zap,
+  Calendar, LayoutDashboard, FileText, ListOrdered, Clock, Tag, Zap,
   Bot, FileCode2, BookOpen, Database, ThumbsUp,
   Users, GraduationCap, HeadphonesIcon, Key,
   Mail, BarChart2, FileBarChart,
@@ -14,6 +14,7 @@ import Avatar from '../ui/Avatar'
 import FecapLogo from '../ui/FecapLogo'
 import { cn } from '../../lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
+import AdminNotifications from '../admin/AdminNotifications'
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>
@@ -35,6 +36,7 @@ const navSections: NavSection[] = [
     items: [
       { icon: FileText, label: 'Chamados', to: '/admin/chamados' },
       { icon: ListOrdered, label: 'Fila', to: '/admin/fila' },
+      { icon: Calendar, label: 'Agendamentos', to: '/admin/agendamentos' },
       { icon: Clock, label: 'SLA', to: '/admin/sla' },
       { icon: Tag, label: 'Categorias', to: '/admin/categorias' },
       { icon: Zap, label: 'Automações', to: '/admin/automacoes' },
@@ -91,6 +93,7 @@ export default function AdminLayout() {
   const { theme, toggleTheme, sidebarCollapsed, toggleSidebar, currentUser, logout } = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
   const navigate = useNavigate()
+  const [menuSearch, setMenuSearch] = useState('')
 
   const sidebarContent = (collapsed = false) => (
     <>
@@ -117,7 +120,7 @@ export default function AdminLayout() {
             )}
             {section.label && collapsed && si > 0 && <div className="my-2 border-t border-gray-100 dark:border-slate-700" />}
             <div className="space-y-0.5">
-              {section.items.map(({ icon: Icon, label, to }) => (
+              {section.items.filter(item => item.label.toLocaleLowerCase('pt-BR').includes(menuSearch.toLocaleLowerCase('pt-BR'))).map(({ icon: Icon, label, to }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -232,7 +235,9 @@ export default function AdminLayout() {
             <div className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-slate-700/50 rounded-lg px-3 py-1.5 w-52">
               <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
               <input
-                placeholder="Buscar..."
+                placeholder="Buscar no menu..."
+                value={menuSearch}
+                onChange={event => setMenuSearch(event.target.value)}
                 className="bg-transparent text-sm text-gray-600 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-500 outline-none w-full"
               />
             </div>
@@ -244,10 +249,7 @@ export default function AdminLayout() {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <button className="relative p-2 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
-            </button>
+            <AdminNotifications />
             <div className="flex items-center gap-2 pl-2 border-l border-gray-200 dark:border-slate-700">
               <Avatar name={currentUser?.name || 'Administrador'} size="sm" />
               <div className="hidden md:block">
@@ -273,7 +275,7 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <Outlet />
         </main>
       </div>

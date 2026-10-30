@@ -1,9 +1,27 @@
 import { aiService } from '../services/ai.service'
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
+import { ACTIVE_TICKET_STATUSES, COMPLETED_TICKET_STATUSES, liveSlaStatus, metricTicketSelect, reportPeriod, statusAuditQuery, ticketAnalytics } from '../services/admin-metrics'
+import { operationalHealth, publicIntegrationConfig } from '../services/admin-health'
 import { prisma } from '../db'
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth'
 
 export const adminRouter = Router()
+adminRouter.use(authenticateToken, requireRole(['admin', 'asa']))
+
+const publicUserSelect = {
+  id: true, name: true, email: true, role: true, avatar: true,
+  department: true, status: true, lastAccess: true, createdAt: true,
+} as const
+
+const publicStudentSelect = {
+  id: true, name: true, ra: true, email: true, course: true, semester: true,
+  period: true, status: true, phone: true, createdAt: true, updatedAt: true,
+} as const
+
+adminRouter.get('/health', async (_req, res) => {
+  res.json(await operationalHealth(() => prisma.$queryRaw`SELECT 1`))
+})
 
 // SLA Rules
 adminRouter.get('/sla-rules', authenticateToken, async (req, res) => {
@@ -18,6 +36,11 @@ adminRouter.get('/sla-rules', authenticateToken, async (req, res) => {
 adminRouter.post('/sla-rules', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { name, priority, category, firstResponseMinutes, resolutionHours, active } = req.body
+    if (typeof name !== 'string' || !name.trim() || !['baixa', 'media', 'alta', 'critica'].includes(priority)
+      || !Number.isInteger(Number(firstResponseMinutes)) || Number(firstResponseMinutes) <= 0
+      || !Number.isInteger(Number(resolutionHours)) || Number(resolutionHours) <= 0) {
+      return res.status(400).json({ error: 'Informe nome, prioridade e prazos inteiros positivos.' })
+    }
     const rule = await prisma.sLARule.create({
       data: {
         name,
@@ -85,7 +108,7 @@ adminRouter.get('/audit-logs', authenticateToken, async (req, res) => {
     const logs = await prisma.auditEvent.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: limit ? Number(limit) : 50,
+      take: Math.min(500, Math.max(1, Number.parseInt(String(limit)) || 50)),
     })
     res.json(logs)
   } catch (error) {
@@ -94,7 +117,7 @@ adminRouter.get('/audit-logs', authenticateToken, async (req, res) => {
 })
 
 // AI Prompts
-adminRouter.get('/prompts', authenticateToken, async (req, res) => {
+adminRouter.get('/prompts', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const prompts = await prisma.aIPrompt.findMany({ orderBy: { updatedAt: 'desc' } })
     res.json(prompts)
@@ -113,7 +136,7 @@ adminRouter.put('/prompts/:id', authenticateToken, requireRole(['admin']), async
     if (version) dataToUpdate.version = version
     if (status) dataToUpdate.status = status
     if (name) dataToUpdate.name = name
-    if (description) dataToUpdate.description = description
+    if (typeof description === 'string') dataToUpdate.description = description
 
     const prompt = await prisma.aIPrompt.update({
       where: { id },
@@ -126,12 +149,15 @@ adminRouter.put('/prompts/:id', authenticateToken, requireRole(['admin']), async
 })
 
 // Integrations
-adminRouter.get('/integrations', authenticateToken, async (req, res) => {
+adminRouter.get('/integrations', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const integrations = await prisma.integration.findMany({ orderBy: { createdAt: 'asc' } })
     const formatted = integrations.map(i => ({
       ...i,
-      config: JSON.parse(i.config || '{}'),
+      config: publicIntegrationConfig(i.config),
+      status: 'nao_verificado',
+      recordedStatus: i.status,
+      detail: 'Cadastro de integração. Conectividade e sincronização não verificadas.',
     }))
     res.json(formatted)
   } catch (error) {
@@ -159,7 +185,7 @@ adminRouter.get('/users', authenticateToken, async (req, res) => {
         lastAccess: true,
         createdAt: true,
         _count: {
-          select: { assignedTickets: true },
+          select: { assignedTickets: { where: { status: { in: ACTIVE_TICKET_STATUSES } } } },
         },
       },
       orderBy: { name: 'asc' },
@@ -201,139 +227,58 @@ adminRouter.patch('/notifications/:id/read', authenticateToken, async (req, res)
 // ADMIN DASHBOARD & REAL DATA INTEGRATIONS
 // ==========================================
 
-// Dashboard Consolidated Stats (Real Data)
-adminRouter.get('/dashboard-stats', authenticateToken, requireRole(['admin', 'asa']), async (req: AuthenticatedRequest, res) => {
+// Dashboard values are based on persisted records, with no sampling cap.
+adminRouter.get('/dashboard-stats', authenticateToken, requireRole(['admin', 'asa']), async (_req, res) => {
   try {
-    const [
-      totalStudents,
-      totalAsa,
-      activeAsa,
-      totalTickets,
-      openTickets,
-      resolvedTickets,
-      slaRiskTickets,
-      appointmentsCount,
-      users,
-      allTickets,
-      auditEvents,
-    ] = await Promise.all([
+    const now = new Date()
+    const [totalStudents, totalAsa, activeAsa, appointmentsCount, users, tickets, auditEvents, statusAudits, health] = await Promise.all([
       prisma.student.count(),
-      prisma.user.count({ where: { role: { in: ['asa', 'admin'] } } }),
-      prisma.user.count({ where: { role: { in: ['asa', 'admin'] }, status: 'ativo' } }),
-      prisma.ticket.count(),
-      prisma.ticket.count({ where: { status: { in: ['aberto', 'em_atendimento', 'aguardando_aluno'] } } }),
-      prisma.ticket.count({ where: { status: { in: ['resolvido', 'fechado'] } } }),
-      prisma.ticket.count({ where: { slaStatus: { in: ['risk', 'breached'] } } }),
+      prisma.user.count({ where: { role: 'asa' } }),
+      prisma.user.count({ where: { role: 'asa', status: 'ativo' } }),
       prisma.appointment.count(),
       prisma.user.findMany({
-        where: { role: { in: ['asa', 'admin'] } },
+        where: { role: 'asa' },
         select: {
-          id: true,
-          name: true,
-          email: true,
-          avatar: true,
-          status: true,
-          lastAccess: true,
-          _count: { select: { assignedTickets: { where: { status: { in: ['aberto', 'em_atendimento'] } } } } },
+          ...publicUserSelect,
+          _count: { select: { assignedTickets: { where: { status: { in: ACTIVE_TICKET_STATUSES } } } } },
         },
         orderBy: { name: 'asc' },
       }),
-      prisma.ticket.findMany({
-        select: { category: true, status: true, createdAt: true, updatedAt: true },
-        take: 1000,
-      }),
-      prisma.auditEvent.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-      }),
+      prisma.ticket.findMany({ select: metricTicketSelect }),
+      prisma.auditEvent.findMany({ orderBy: { createdAt: 'desc' }, take: 6 }),
+      prisma.auditEvent.findMany(statusAuditQuery),
+      operationalHealth(() => prisma.$queryRaw`SELECT 1`),
     ])
-
-    // Categoria breakdown
     const categoryCounts: Record<string, number> = {}
-    allTickets.forEach(t => {
-      categoryCounts[t.category] = (categoryCounts[t.category] || 0) + 1
-    })
-
+    tickets.forEach(ticket => { categoryCounts[ticket.category] = (categoryCounts[ticket.category] || 0) + 1 })
     const categoryColors: Record<string, string> = {
-      matricula: '#3b82f6',
-      financeiro: '#10b981',
-      academico: '#f59e0b',
-      documentos: '#8b5cf6',
-      infraestrutura: '#ec4899',
-      cancelamento: '#ef4444',
-      outros: '#64748b',
+      matricula: '#3b82f6', financeiro: '#10b981', academico: '#f59e0b', documentos: '#8b5cf6',
+      infraestrutura: '#ec4899', cancelamento: '#ef4444', outros: '#64748b',
     }
-
-    const pieData = Object.entries(categoryCounts).map(([cat, count]) => ({
-      name: cat.charAt(0).toUpperCase() + cat.slice(1),
-      value: count,
-      color: categoryColors[cat] || '#6366f1',
-    }))
-
-    // 7 dias chart
-    const daysMap = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-    const last7DaysData: { name: string; abertos: number; resolvidos: number }[] = []
-    const now = new Date()
-
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0)
-      const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59)
-      const dayName = daysMap[d.getDay()]
-
-      const abertos = allTickets.filter(t => {
-        const ct = new Date(t.createdAt)
-        return ct >= dayStart && ct <= dayEnd
-      }).length
-
-      const resolvidos = allTickets.filter(t => {
-        const ut = new Date(t.updatedAt)
-        return (t.status === 'resolvido' || t.status === 'fechado') && ut >= dayStart && ut <= dayEnd
-      }).length
-
-      last7DaysData.push({
-        name: dayName,
-        abertos,
-        resolvidos,
-      })
+    const analytics = ticketAnalytics(tickets, statusAudits, [], reportPeriod(7, now))
+    const statusLabels: Record<string, string> = {
+      operacional: 'Operacional', configurado: 'Configurado · não verificado',
+      nao_configurado: 'Não configurado', indisponivel: 'Indisponível',
     }
-
-    const teamStatus = users.map(u => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=16a34a&color=fff`,
-      status: u.status,
-      lastAccess: u.lastAccess,
-      tickets: u._count.assignedTickets,
-    }))
-
-    const systemHealth = [
-      { label: 'API Backend', status: 'Operacional', color: 'bg-green-500' },
-      { label: 'Google Gemini IA', status: Boolean(process.env.GEMINI_API_KEY) ? 'Operacional' : 'Degradado', color: Boolean(process.env.GEMINI_API_KEY) ? 'bg-green-500' : 'bg-amber-500' },
-      { label: 'Banco SQLite', status: 'Operacional', color: 'bg-green-500' },
-      { label: 'Cloudflare R2', status: Boolean(process.env.R2_BUCKET_NAME || process.env.CLOUDFLARE_R2_BUCKET) ? 'Operacional' : 'Degradado', color: 'bg-green-500' },
-      { label: 'Base de Conhecimento (RAG)', status: 'Operacional', color: 'bg-green-500' },
-      { label: 'Central Presencial (ASA)', status: 'Operacional', color: 'bg-green-500' },
-    ]
-
     res.json({
-      totalStudents,
-      totalAsa,
-      activeAsa,
-      totalTickets,
-      openTickets,
-      resolvedTickets,
-      slaRiskTickets,
-      appointmentsCount,
-      pieData,
-      chartData: last7DaysData,
-      teamStatus,
+      totalStudents, totalAsa, activeAsa, appointmentsCount,
+      totalTickets: tickets.length,
+      openTickets: tickets.filter(t => ACTIVE_TICKET_STATUSES.includes(t.status)).length,
+      resolvedTickets: tickets.filter(t => COMPLETED_TICKET_STATUSES.includes(t.status)).length,
+      slaRiskTickets: tickets.filter(t => ACTIVE_TICKET_STATUSES.includes(t.status) && liveSlaStatus(t, now) !== 'ok').length,
+      pieData: Object.entries(categoryCounts).map(([category, value]) => ({
+        name: category.charAt(0).toUpperCase() + category.slice(1), value, color: categoryColors[category] || '#6366f1',
+      })),
+      chartData: analytics.chartData.map(point => ({ ...point, abertos: point.criados })),
+      teamStatus: users.map(user => ({ ...user, tickets: user._count.assignedTickets, _count: undefined })),
       recentAuditEvents: auditEvents,
-      systemHealth,
+      systemHealth: health.checks.map(check => ({
+        ...check, status: statusLabels[check.status],
+        color: check.status === 'operacional' ? 'bg-green-500' : check.status === 'indisponivel' ? 'bg-red-500' : 'bg-amber-500',
+      })),
+      sampleCounts: analytics.sampleCounts,
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Erro ao buscar métricas da Central de Controle:', error)
     res.status(500).json({ error: 'Erro ao gerar indicadores do dashboard' })
   }
@@ -344,7 +289,7 @@ adminRouter.get('/students', authenticateToken, requireRole(['admin', 'asa']), a
   try {
     const { search, course, status, period, page = '1', limit = '20' } = req.query
     const pageNum = Math.max(1, parseInt(String(page)) || 1)
-    const limitNum = Math.max(1, parseInt(String(limit)) || 20)
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit)) || 20))
     const skip = (pageNum - 1) * limitNum
 
     const where: any = {}
@@ -362,23 +307,20 @@ adminRouter.get('/students', authenticateToken, requireRole(['admin', 'asa']), a
       ]
     }
 
-    const [students, total] = await Promise.all([
+    const [students, total, totalsByStatus, courseRows] = await Promise.all([
       prisma.student.findMany({
         where,
-        include: {
-          _count: {
-            select: {
-              tickets: true,
-              appointments: true,
-              conversations: true,
-            },
-          },
+        select: {
+          ...publicStudentSelect,
+          _count: { select: { tickets: true, appointments: true, conversations: true } },
         },
         orderBy: { name: 'asc' },
         skip,
         take: limitNum,
       }),
       prisma.student.count({ where }),
+      prisma.student.groupBy({ by: ['status'], _count: { _all: true } }),
+      prisma.student.findMany({ select: { course: true }, distinct: ['course'], orderBy: { course: 'asc' } }),
     ])
 
     res.json({
@@ -386,6 +328,13 @@ adminRouter.get('/students', authenticateToken, requireRole(['admin', 'asa']), a
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
+      summary: {
+        total: totalsByStatus.reduce((sum, row) => sum + row._count._all, 0),
+        regular: totalsByStatus.find(row => row.status === 'regular')?._count._all || 0,
+        irregular: totalsByStatus.find(row => row.status === 'irregular')?._count._all || 0,
+        trancado: totalsByStatus.find(row => row.status === 'trancado')?._count._all || 0,
+      },
+      courses: courseRows.map(row => row.course),
     })
   } catch (error) {
     console.error('Erro ao listar alunos no admin:', error)
@@ -397,16 +346,21 @@ adminRouter.get('/students', authenticateToken, requireRole(['admin', 'asa']), a
 adminRouter.post('/students', authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const { name, ra, email, course, semester, period, phone, status } = req.body
-    if (!name || !ra || !email || !course) {
+    if (![name, ra, email, course].every(value => typeof value === 'string' && value.trim())) {
       return res.status(400).json({ error: 'Nome, RA, e-mail e curso são obrigatórios' })
+    }
+    if ((period && !['manha', 'tarde', 'noite'].includes(period))
+      || (status && !['regular', 'irregular', 'trancado'].includes(status))
+      || (semester !== undefined && (!Number.isInteger(Number(semester)) || Number(semester) < 1))) {
+      return res.status(400).json({ error: 'Período, situação ou semestre inválido.' })
     }
 
     const student = await prisma.student.create({
       data: {
-        name,
-        ra,
-        email,
-        course,
+        name: name.trim(),
+        ra: ra.trim(),
+        email: email.trim().toLowerCase(),
+        course: course.trim(),
         semester: Number(semester) || 1,
         period: period || 'manha',
         phone: phone || null,
@@ -429,21 +383,25 @@ adminRouter.post('/students', authenticateToken, requireRole(['admin']), async (
 
     res.status(201).json(student)
   } catch (error: any) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: 'RA ou e-mail já cadastrado.' })
+    }
     console.error('Erro ao cadastrar aluno:', error)
-    res.status(500).json({ error: error.message || 'Erro ao cadastrar aluno' })
+    res.status(500).json({ error: 'Erro ao cadastrar aluno' })
   }
 })
 
 // Toggle Student Status
-adminRouter.patch('/students/:id/status', authenticateToken, requireRole(['admin', 'asa']), async (req: AuthenticatedRequest, res) => {
+adminRouter.patch('/students/:id/status', authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const id = String(req.params.id)
     const { status } = req.body
-    if (!status) return res.status(400).json({ error: 'Status é obrigatório' })
+    if (!['regular', 'irregular', 'trancado'].includes(status)) return res.status(400).json({ error: 'Status de aluno inválido' })
 
     const student = await prisma.student.update({
       where: { id },
       data: { status },
+      select: publicStudentSelect,
     })
 
     await prisma.auditEvent.create({
@@ -469,19 +427,21 @@ adminRouter.patch('/students/:id/status', authenticateToken, requireRole(['admin
 adminRouter.post('/users', authenticateToken, requireRole(['admin']), async (req: AuthenticatedRequest, res) => {
   try {
     const { name, email, password, role, department } = req.body
-    if (!name || !email) {
+    if (![name, email].every(value => typeof value === 'string' && value.trim())) {
       return res.status(400).json({ error: 'Nome e e-mail são obrigatórios' })
     }
+    if (role && !['admin', 'asa'].includes(role)) return res.status(400).json({ error: 'Perfil de equipe inválido.' })
 
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
         password: password || '123456',
         role: role || 'asa',
         department: department || 'Atendimento ASA',
         status: 'ativo',
       },
+      select: publicUserSelect,
     })
 
     await prisma.auditEvent.create({
@@ -499,8 +459,11 @@ adminRouter.post('/users', authenticateToken, requireRole(['admin']), async (req
 
     res.status(201).json(user)
   } catch (error: any) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: 'E-mail já cadastrado.' })
+    }
     console.error('Erro ao criar usuário:', error)
-    res.status(500).json({ error: error.message || 'Erro ao criar usuário' })
+    res.status(500).json({ error: 'Erro ao criar usuário' })
   }
 })
 
@@ -509,11 +472,12 @@ adminRouter.patch('/users/:id/status', authenticateToken, requireRole(['admin'])
   try {
     const id = String(req.params.id)
     const { status } = req.body
-    if (!status) return res.status(400).json({ error: 'Status é obrigatório' })
+    if (!['ativo', 'inativo'].includes(status)) return res.status(400).json({ error: 'Status de usuário inválido' })
 
     const user = await prisma.user.update({
       where: { id },
       data: { status },
+      select: publicUserSelect,
     })
 
     await prisma.auditEvent.create({
@@ -554,16 +518,16 @@ adminRouter.post('/ai-analysis', authenticateToken, requireRole(['admin', 'asa']
       users,
     ] = await Promise.all([
       prisma.student.count(),
-      prisma.user.count({ where: { role: { in: ['asa', 'admin'] } } }),
-      prisma.user.count({ where: { role: { in: ['asa', 'admin'] }, status: 'ativo' } }),
+      prisma.user.count({ where: { role: 'asa' } }),
+      prisma.user.count({ where: { role: 'asa', status: 'ativo' } }),
       prisma.ticket.count(),
       prisma.ticket.count({ where: { status: { in: ['aberto', 'em_atendimento', 'aguardando_aluno'] } } }),
       prisma.ticket.count({ where: { status: { in: ['resolvido', 'fechado'] } } }),
-      prisma.ticket.count({ where: { slaStatus: { in: ['risk', 'breached'] } } }),
-      prisma.ticket.findMany({ select: { category: true, title: true }, take: 100 }),
+      prisma.ticket.count({ where: { status: { in: ACTIVE_TICKET_STATUSES }, slaDeadline: { lt: new Date(Date.now() + 3600000) } } }),
+      prisma.ticket.findMany({ select: { category: true, title: true }, orderBy: { createdAt: 'desc' } }),
       prisma.user.findMany({
-        where: { role: { in: ['asa', 'admin'] } },
-        select: { name: true, _count: { select: { assignedTickets: { where: { status: { in: ['aberto', 'em_atendimento'] } } } } } },
+        where: { role: 'asa' },
+        select: { name: true, _count: { select: { assignedTickets: { where: { status: { in: ACTIVE_TICKET_STATUSES } } } } } },
       }),
     ])
 
@@ -595,6 +559,8 @@ adminRouter.post('/ai-analysis', authenticateToken, requireRole(['admin', 'asa']
         diagnostics: JSON.stringify(analysis.diagnostics),
         recommendations: JSON.stringify(analysis.recommendations),
         metricsSnapshot: JSON.stringify({
+          analysisSource: analysis.source,
+          analysisModel: analysis.model,
           totalStudents,
           totalAsa,
           activeAsa,

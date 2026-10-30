@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import { prisma } from '../db'
-import { AuthenticatedRequest, authenticateToken } from '../middleware/auth'
+import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth'
 
 export const studentRouter = Router()
 
 // List students
-studentRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res) => {
+studentRouter.get('/', authenticateToken, requireRole(['admin', 'asa']), async (req: AuthenticatedRequest, res) => {
   try {
     const { search, course, status, period } = req.query
 
@@ -54,6 +54,9 @@ studentRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res)
 studentRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const id = String(req.params.id)
+    if (req.user?.role === 'aluno' && req.user.id !== id) {
+      return res.status(403).json({ error: 'Você só pode consultar seu próprio cadastro.' })
+    }
 
     const student = await prisma.student.findUnique({
       where: { id },
@@ -62,7 +65,7 @@ studentRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, r
           orderBy: { createdAt: 'desc' },
           include: {
             attendant: { select: { id: true, name: true, email: true } },
-            aiSuggestion: true,
+            aiSuggestion: req.user?.role !== 'aluno',
           },
         },
         conversations: {
