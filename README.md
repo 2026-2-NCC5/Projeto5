@@ -7,12 +7,12 @@
 > **Projeto Interdisciplinar — Inteligência Artificial & Engenharia de Software**  
 > **Fundação Escola de Comércio Álvares Penteado (FECAP)**  
 > **Curso:** Ciência da Computação / Engenharia de Software <br>
-> <a href="https://projeto5-rose.vercel.app">Acesso à Aplicação em Produção</a>
+> <a href="https://alvaro-ai.joao-fsantana.workers.dev/">Acesso à Aplicação em Produção</a>
 ---
 
 ## 📌 Sobre o Projeto
 
-O **Álvaro AI** é uma plataforma full-stack de atendimento universitário integrada para o **ASA (Área do Sucesso Alvarista)** da FECAP. A solução combina um assistente conversacional inteligente potencializado por **Inteligência Artificial Generativa (Google Gemini 3.6 Flash)** e **RAG (*Retrieval-Augmented Generation*)** com um sistema completo de gestão de chamados acadêmicos e atendimento humano (*Human-in-the-Loop*).
+O **lÁvaro** é uma plataforma full-stack de atendimento universitário integrada para o **ASA (Área do Sucesso Alvarista)** da FECAP. A solução combina um assistente conversacional inteligente potencializado por **Inteligência Artificial Generativa (Google Gemini 3.6 Flash)** e **RAG (*Retrieval-Augmented Generation*)** com um sistema completo de gestão de chamados acadêmicos e atendimento humano (*Human-in-the-Loop*).
 
 ---
 
@@ -140,11 +140,11 @@ npm run dev
 
 ## 🔑 Credenciais de Demonstração
 
-| Perfil | E-mail Institucional | Senha Global | Acesso |
+| Perfil | E-mail de Login | Senha | Acesso |
 | :--- | :--- | :--- | :--- |
-| **Aluna** | `esther.rodrigues@aluno.fecap.br` | `@#$273baratA` | Portal do Aluno & Chatbot |
-| **Atendente ASA** | `fernanda.costa@fecap.br` | `@#$273baratA` | Fila ASA & Base de Conhecimento |
-| **Administrador** | `ricardo.mendes@fecap.br` | `@#$273baratA` | Central de Controle & Governança |
+| **Aluno** | `gabriel@gmail.com` | `@#$273Barata` | Portal do Aluno & Chatbot |
+| **Atendente ASA** | `joao.fsantana@outlook.com` | `@#$273barata` | Fila ASA & Base de Conhecimento |
+| **Administrador** | `oliveiracostaesther@gmail.com` | `@#$273Barata` | Central de Controle & Governança |
 
 ---
 
