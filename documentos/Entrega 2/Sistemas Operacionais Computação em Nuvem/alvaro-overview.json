@@ -1,0 +1,40 @@
+{
+  "uid": "alvaro-overview", "title": "Alvaro AI - Visão Geral (RED + USE)", "schemaVersion": 39, "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" }, "tags": ["alvaro"],
+  "panels": [
+    { "id": 1, "type": "timeseries", "title": "Throughput (req/s)", "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "sum(rate(http_requests_total[1m]))", "legendFormat": "req/s" }] },
+    { "id": 2, "type": "timeseries", "title": "Latência p50 / p95 / p99 (s)", "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p99" }] },
+    { "id": 3, "type": "timeseries", "title": "Taxa de erros (%) 4xx / 5xx", "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [
+        { "expr": "100*sum(rate(http_requests_total{status=~\"5..\"}[1m]))/sum(rate(http_requests_total[1m]))", "legendFormat": "5xx %" },
+        { "expr": "100*sum(rate(http_requests_total{status=~\"4..\"}[1m]))/sum(rate(http_requests_total[1m]))", "legendFormat": "4xx %" }] },
+    { "id": 4, "type": "timeseries", "title": "CPU da API (cores)", "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "rate(process_cpu_seconds_total{job=\"api\"}[1m])", "legendFormat": "api" },
+                  { "expr": "sum by (name)(rate(container_cpu_usage_seconds_total{name=~\".*(db|nginx|api).*\"}[1m]))", "legendFormat": "{{name}}" }] },
+    { "id": 5, "type": "timeseries", "title": "Memória (MB)", "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "process_resident_memory_bytes{job=\"api\"}/1048576", "legendFormat": "api RSS" },
+                  { "expr": "nodejs_heap_size_used_bytes{job=\"api\"}/1048576", "legendFormat": "heap usado" },
+                  { "expr": "container_memory_working_set_bytes{name=~\".*db.*\"}/1048576", "legendFormat": "postgres" }] },
+    { "id": 6, "type": "timeseries", "title": "Event-loop lag p99 (s) e requisições em voo", "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "nodejs_eventloop_lag_p99_seconds{job=\"api\"}", "legendFormat": "lag p99" },
+                  { "expr": "http_requests_in_flight", "legendFormat": "in-flight" }] },
+    { "id": 7, "type": "timeseries", "title": "PostgreSQL: conexões e transações/s", "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "sum(pg_stat_database_numbackends)", "legendFormat": "conexões" },
+                  { "expr": "sum(rate(pg_stat_database_xact_commit[1m]))", "legendFormat": "commits/s" }] },
+    { "id": 8, "type": "logs", "title": "Logs de erro (Loki)", "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{ "expr": "{service=~\"api|nginx\"} | json | level=~\"error|warn\" or status>=500" }] }
+  ]
+}

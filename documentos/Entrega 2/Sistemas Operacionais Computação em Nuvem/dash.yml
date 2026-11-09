@@ -1,0 +1,3 @@
+apiVersion: 1
+providers:
+  - { name: alvaro, folder: Alvaro AI, type: file, options: { path: /var/lib/grafana/dashboards } }
