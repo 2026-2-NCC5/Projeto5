@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "paths": {
+      "@alvaro/pdf-extractor": [
+        "./src/services/pdf.service.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

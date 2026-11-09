@@ -1,0 +1,33 @@
+groups:
+  - name: alvaro-slo
+    rules:
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "API fora do ar" }
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.02
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "Taxa de erros 5xx > 2% (SLO: 99% de sucesso)" }
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Latência p95 > 500ms" }
+      - alert: HighMemory
+        expr: process_resident_memory_bytes{job="api"} > 400*1024*1024
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "API usando >400MB (limite 512MB)" }
+      - alert: EventLoopLag
+        expr: nodejs_eventloop_lag_p99_seconds > 0.2
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: "Event-loop lag p99 > 200ms (CPU saturada)" }
+      - alert: DatabaseDown
+        expr: pg_up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "PostgreSQL indisponível" }
