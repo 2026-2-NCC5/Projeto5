@@ -1,8 +1,0 @@
-secrets/
-infra/nginx/certs/
-infra/nginx/htpasswd
-.env
-node_modules/
-evidencias/raw-tmp/
-*.dump
-*.sha256
